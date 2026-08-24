@@ -1,13 +1,18 @@
-# IntelliJ IDEA
+# IntelliJ
 .idea/
 *.iml
 
-# Build output
-target/
-out/
-
 # Maven
-.mvn/wrapper/maven-wrapper.jar
+target/
+**/target/
+
+# IntelliJ local
+shelf/
+workspace.xml
+httpRequests/
+queries/
+dataSources/
+dataSources.local.xml
 
 # Logs
 *.log
@@ -18,14 +23,6 @@ out/
 application-local.properties
 application-local.yml
 
-# OS files
+# OS
 .DS_Store
 Thumbs.db
-
-# IntelliJ local files
-/shelf/
-/workspace.xml
-/httpRequests/
-/queries/
-/dataSources/
-/dataSources.local.xml
