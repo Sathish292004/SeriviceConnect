@@ -4,5 +4,6 @@ public enum Role {
 
     CUSTOMER,
     PROVIDER,
+    SUPPORT_AGENT,
     ADMIN
 }
