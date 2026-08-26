@@ -148,4 +148,49 @@ public class AuthService {
 
         refreshTokenService.revoke(refreshToken);
     }
+
+    @Transactional
+    public RegisterResponse registerProvider(RegisterRequest request) {
+
+        String email = request.email()
+                .trim()
+                .toLowerCase();
+
+        String phone = request.phone()
+                .trim();
+
+        if (userRepository.existsByEmail(email)) {
+            throw new EmailAlreadyExistsException(
+                    "Email is already registered"
+            );
+        }
+
+        if (userRepository.existsByPhone(phone)) {
+            throw new PhoneAlreadyExistsException(
+                    "Phone number is already registered"
+            );
+        }
+
+        OffsetDateTime now = OffsetDateTime.now();
+
+        User user = User.builder()
+                .email(email)
+                .password(passwordEncoder.encode(request.password()))
+                .phone(phone)
+                .role(Role.PROVIDER)
+                .enabled(true)
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+
+        User savedUser = userRepository.save(user);
+
+        return RegisterResponse.builder()
+                .id(savedUser.getId())
+                .email(savedUser.getEmail())
+                .phone(savedUser.getPhone())
+                .role(savedUser.getRole())
+                .enabled(savedUser.isEnabled())
+                .build();
+    }
 }

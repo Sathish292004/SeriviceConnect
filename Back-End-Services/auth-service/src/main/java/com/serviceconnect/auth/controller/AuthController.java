@@ -95,4 +95,13 @@ public class AuthController {
 
         return ResponseEntity.noContent().build();
     }
+
+    @PostMapping("/register/provider")
+    public ResponseEntity<RegisterResponse> registerProvider(
+            @Valid @RequestBody RegisterRequest request) {
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(authService.registerProvider(request));
+    }
 }
