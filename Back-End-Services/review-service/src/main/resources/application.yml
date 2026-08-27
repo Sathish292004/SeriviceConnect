@@ -34,3 +34,7 @@ management:
     web:
       exposure:
         include: health,info
+
+services:
+  booking:
+    url: http://localhost:8085

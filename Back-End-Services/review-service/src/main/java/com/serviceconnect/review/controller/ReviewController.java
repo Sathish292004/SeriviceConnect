@@ -3,15 +3,22 @@ package com.serviceconnect.review.controller;
 import com.serviceconnect.review.dto.request.ReviewRequest;
 import com.serviceconnect.review.dto.response.ReviewResponse;
 import com.serviceconnect.review.service.ReviewService;
+
 import jakarta.validation.Valid;
+
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+
 
 @RestController
 @RequestMapping("/api/reviews")
@@ -27,16 +34,31 @@ public class ReviewController {
 
     @PostMapping
     public ResponseEntity<ReviewResponse> create(
-            @AuthenticationPrincipal Jwt jwt,
-            @Valid @RequestBody ReviewRequest request) {
 
-        Long customerId = Long.valueOf(
-                jwt.getSubject()
-        );
+            @AuthenticationPrincipal
+            Jwt jwt,
+
+            @RequestHeader(HttpHeaders.AUTHORIZATION)
+            String authorizationHeader,
+
+            @Valid
+            @RequestBody
+            ReviewRequest request) {
+
+        Long customerId =
+                Long.valueOf(
+                        jwt.getSubject()
+                );
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(reviewService.create(customerId, request));
+                .body(
+                        reviewService.create(
+                                customerId,
+                                authorizationHeader,
+                                request
+                        )
+                );
     }
 
 
@@ -46,7 +68,9 @@ public class ReviewController {
 
     @GetMapping("/{id}")
     public ResponseEntity<ReviewResponse> getById(
-            @PathVariable Long id) {
+
+            @PathVariable
+            Long id) {
 
         return ResponseEntity.ok(
                 reviewService.getById(id)
@@ -60,7 +84,9 @@ public class ReviewController {
 
     @GetMapping("/booking/{bookingId}")
     public ResponseEntity<ReviewResponse> getByBooking(
-            @PathVariable Long bookingId) {
+
+            @PathVariable
+            Long bookingId) {
 
         return ResponseEntity.ok(
                 reviewService.getByBooking(bookingId)
@@ -74,10 +100,14 @@ public class ReviewController {
 
     @GetMapping("/provider/{providerId}")
     public ResponseEntity<List<ReviewResponse>> getByProvider(
-            @PathVariable Long providerId) {
+
+            @PathVariable
+            Long providerId) {
 
         return ResponseEntity.ok(
-                reviewService.getByProvider(providerId)
+                reviewService.getByProvider(
+                        providerId
+                )
         );
     }
 
@@ -88,10 +118,14 @@ public class ReviewController {
 
     @GetMapping("/customer/{customerId}")
     public ResponseEntity<List<ReviewResponse>> getByCustomer(
-            @PathVariable Long customerId) {
+
+            @PathVariable
+            Long customerId) {
 
         return ResponseEntity.ok(
-                reviewService.getByCustomer(customerId)
+                reviewService.getByCustomer(
+                        customerId
+                )
         );
     }
 
@@ -115,13 +149,21 @@ public class ReviewController {
 
     @PutMapping("/{id}")
     public ResponseEntity<ReviewResponse> update(
-            @AuthenticationPrincipal Jwt jwt,
-            @PathVariable Long id,
-            @Valid @RequestBody ReviewRequest request) {
 
-        Long customerId = Long.valueOf(
-                jwt.getSubject()
-        );
+            @AuthenticationPrincipal
+            Jwt jwt,
+
+            @PathVariable
+            Long id,
+
+            @Valid
+            @RequestBody
+            ReviewRequest request) {
+
+        Long customerId =
+                Long.valueOf(
+                        jwt.getSubject()
+                );
 
         return ResponseEntity.ok(
                 reviewService.update(
@@ -139,18 +181,25 @@ public class ReviewController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deactivate(
-            @AuthenticationPrincipal Jwt jwt,
-            @PathVariable Long id) {
 
-        Long customerId = Long.valueOf(
-                jwt.getSubject()
-        );
+            @AuthenticationPrincipal
+            Jwt jwt,
+
+            @PathVariable
+            Long id) {
+
+        Long customerId =
+                Long.valueOf(
+                        jwt.getSubject()
+                );
 
         reviewService.deactivate(
                 customerId,
                 id
         );
 
-        return ResponseEntity.noContent().build();
+        return ResponseEntity
+                .noContent()
+                .build();
     }
 }

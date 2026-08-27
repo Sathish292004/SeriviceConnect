@@ -43,3 +43,6 @@ provider-service:
 services:
   catalog:
     url: http://localhost:8086
+    
+  review:
+    url: http://localhost:8087
