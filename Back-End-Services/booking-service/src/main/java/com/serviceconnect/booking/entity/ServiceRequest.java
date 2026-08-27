@@ -45,7 +45,12 @@ public class ServiceRequest {
     )
     private Long customerId;
 
-
+    @Column(
+            name = "catalog_item_id",
+            nullable = false
+    )
+    private Long catalogItemId;
+    
     @Column(
             name = "provider_id",
             nullable = false

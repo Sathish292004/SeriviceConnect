@@ -5,12 +5,19 @@ import com.serviceconnect.provider.dto.request.UpdateProviderLocationRequest;
 import com.serviceconnect.provider.dto.request.UpdateProviderStatusRequest;
 import com.serviceconnect.provider.dto.response.ProviderResponse;
 import com.serviceconnect.provider.service.ProviderService;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -20,22 +27,27 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ProviderController {
 
+
     private final ProviderService providerService;
 
 
     // ============================================================
-    // CREATE PROVIDER PROFILE
+    // PROVIDER - CREATE PROFILE
     // ============================================================
 
     @PostMapping
+    @PreAuthorize("hasRole('PROVIDER')")
     public ResponseEntity<ProviderResponse> createProvider(
-            @RequestParam
-            @Positive
-            Long userId,
 
             @Valid
             @RequestBody
-            CreateProviderRequest request) {
+            CreateProviderRequest request,
+
+            @AuthenticationPrincipal
+            Jwt jwt) {
+
+        Long userId =
+                getUserId(jwt);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -49,11 +61,40 @@ public class ProviderController {
 
 
     // ============================================================
+    // ADMIN - GET ALL / FILTER PROVIDERS
+    // ============================================================
+
+    @GetMapping("/admin/all")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<ProviderResponse>> getAllProviders(
+
+            @RequestParam(required = false)
+            String status) {
+
+        if (status == null || status.isBlank()) {
+
+            return ResponseEntity.ok(
+                    providerService.getAllProviders()
+            );
+        }
+
+        return ResponseEntity.ok(
+                providerService.getProvidersByStatus(
+                        status
+                )
+        );
+    }
+
+
+    // ============================================================
     // GET PROVIDER BY ID
+    // ADMIN / PROVIDER ONLY
     // ============================================================
 
     @GetMapping("/{providerId}")
+    @PreAuthorize("hasAnyRole('PROVIDER', 'ADMIN')")
     public ResponseEntity<ProviderResponse> getProvider(
+
             @PathVariable
             @Positive
             Long providerId) {
@@ -67,14 +108,34 @@ public class ProviderController {
 
 
     // ============================================================
-    // GET PROVIDER BY USER ID
+    // PROVIDER - GET OWN PROFILE
+    // ADMIN CAN GET ANY PROVIDER PROFILE
     // ============================================================
 
     @GetMapping("/user/{userId}")
+    @PreAuthorize("hasAnyRole('PROVIDER', 'ADMIN')")
     public ResponseEntity<ProviderResponse> getProviderByUserId(
+
             @PathVariable
             @Positive
-            Long userId) {
+            Long userId,
+
+            @AuthenticationPrincipal
+            Jwt jwt) {
+
+        Long authenticatedUserId =
+                getUserId(jwt);
+
+        String role =
+                getRole(jwt);
+
+        if ("PROVIDER".equals(role)
+                && !authenticatedUserId.equals(userId)) {
+
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "You can only view your own provider profile"
+            );
+        }
 
         return ResponseEntity.ok(
                 providerService.getProviderByUserId(
@@ -85,22 +146,31 @@ public class ProviderController {
 
 
     // ============================================================
-    // UPDATE PROVIDER
+    // PROVIDER - UPDATE OWN PROFILE
     // ============================================================
 
     @PutMapping("/{providerId}")
+    @PreAuthorize("hasRole('PROVIDER')")
     public ResponseEntity<ProviderResponse> updateProvider(
+
             @PathVariable
             @Positive
             Long providerId,
 
             @Valid
             @RequestBody
-            CreateProviderRequest request) {
+            CreateProviderRequest request,
+
+            @AuthenticationPrincipal
+            Jwt jwt) {
+
+        Long authenticatedUserId =
+                getUserId(jwt);
 
         return ResponseEntity.ok(
                 providerService.updateProvider(
                         providerId,
+                        authenticatedUserId,
                         request
                 )
         );
@@ -108,18 +178,20 @@ public class ProviderController {
 
 
     // ============================================================
-    // DELETE PROVIDER
-    // ADMIN ONLY
+    // ADMIN - DELETE PROVIDER
     // ============================================================
 
     @DeleteMapping("/{providerId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> deleteProvider(
+
             @PathVariable
             @Positive
             Long providerId) {
 
-        providerService.deleteProvider(providerId);
+        providerService.deleteProvider(
+                providerId
+        );
 
         return ResponseEntity
                 .noContent()
@@ -134,6 +206,7 @@ public class ProviderController {
     @PatchMapping("/{providerId}/status")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ProviderResponse> updateProviderStatus(
+
             @PathVariable
             @Positive
             Long providerId,
@@ -152,10 +225,11 @@ public class ProviderController {
 
 
     // ============================================================
-    // CUSTOMER - GET APPROVED PROVIDERS ONLY
+    // CUSTOMER - GET APPROVED PROVIDERS
     // ============================================================
 
     @GetMapping
+    @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<List<ProviderResponse>>
     getApprovedProviders() {
 
@@ -166,22 +240,31 @@ public class ProviderController {
 
 
     // ============================================================
-    // PROVIDER - UPDATE LIVE LOCATION
+    // PROVIDER - UPDATE OWN LIVE LOCATION
     // ============================================================
 
     @PatchMapping("/{providerId}/location")
+    @PreAuthorize("hasRole('PROVIDER')")
     public ResponseEntity<ProviderResponse> updateProviderLocation(
+
             @PathVariable
             @Positive
             Long providerId,
 
             @Valid
             @RequestBody
-            UpdateProviderLocationRequest request) {
+            UpdateProviderLocationRequest request,
+
+            @AuthenticationPrincipal
+            Jwt jwt) {
+
+        Long authenticatedUserId =
+                getUserId(jwt);
 
         return ResponseEntity.ok(
                 providerService.updateProviderLocation(
                         providerId,
+                        authenticatedUserId,
                         request.latitude(),
                         request.longitude()
                 )
@@ -194,7 +277,9 @@ public class ProviderController {
     // ============================================================
 
     @GetMapping("/{providerId}/public")
+    @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<ProviderResponse> getApprovedProvider(
+
             @PathVariable
             @Positive
             Long providerId) {
@@ -204,5 +289,65 @@ public class ProviderController {
                         providerId
                 )
         );
+    }
+
+
+    // ============================================================
+    // JWT USER ID
+    // ============================================================
+
+    private Long getUserId(Jwt jwt) {
+
+        if (jwt == null) {
+
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Authentication required"
+            );
+        }
+
+        String subject =
+                jwt.getSubject();
+
+        if (subject == null
+                || subject.isBlank()) {
+
+            throw new IllegalStateException(
+                    "User ID not found in JWT"
+            );
+        }
+
+        try {
+
+            return Long.parseLong(subject);
+
+        } catch (NumberFormatException exception) {
+
+            throw new IllegalStateException(
+                    "Invalid user ID in JWT subject"
+            );
+        }
+    }
+
+
+    // ============================================================
+    // JWT ROLE
+    // ============================================================
+
+    private String getRole(Jwt jwt) {
+
+        String role =
+                jwt.getClaimAsString("role");
+
+        if (role == null
+                || role.isBlank()) {
+
+            throw new IllegalStateException(
+                    "Role not found in JWT"
+            );
+        }
+
+        return role
+                .trim()
+                .toUpperCase();
     }
 }

@@ -6,6 +6,7 @@ import com.serviceconnect.auth.dto.request.RegisterRequest;
 import com.serviceconnect.auth.dto.response.LoginResponse;
 import com.serviceconnect.auth.dto.response.RefreshTokenResponse;
 import com.serviceconnect.auth.dto.response.RegisterResponse;
+import com.serviceconnect.auth.dto.response.UserRoleResponse;
 import com.serviceconnect.auth.entity.User;
 import com.serviceconnect.auth.enums.Role;
 import com.serviceconnect.auth.exception.EmailAlreadyExistsException;
@@ -191,6 +192,23 @@ public class AuthService {
                 .phone(savedUser.getPhone())
                 .role(savedUser.getRole())
                 .enabled(savedUser.isEnabled())
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public UserRoleResponse getUserRole(Long userId) {
+
+        User user =
+                userRepository.findById(userId)
+                        .orElseThrow(() ->
+                                new IllegalArgumentException(
+                                        "User not found"
+                                )
+                        );
+
+        return UserRoleResponse.builder()
+                .id(user.getId())
+                .role(user.getRole())
                 .build();
     }
 }

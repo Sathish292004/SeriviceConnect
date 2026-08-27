@@ -1,5 +1,6 @@
 package com.serviceconnect.admin.service;
 
+import com.serviceconnect.admin.client.AuthServiceClient;
 import com.serviceconnect.admin.dto.request.AssignTicketRequest;
 import com.serviceconnect.admin.dto.request.CreateTicketRequest;
 import com.serviceconnect.admin.dto.request.UpdateTicketRequest;
@@ -9,14 +10,16 @@ import com.serviceconnect.admin.entity.SupportTicket;
 import com.serviceconnect.admin.entity.TicketStatus;
 import com.serviceconnect.admin.mapper.AdminMapper;
 import com.serviceconnect.admin.repository.SupportTicketRepository;
+
 import jakarta.servlet.http.HttpServletRequest;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import jakarta.servlet.http.HttpServletRequest;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -27,8 +30,12 @@ import java.util.UUID;
 public class TicketService {
 
     private final AuditLogService auditLogService;
+
     private final SupportTicketRepository ticketRepository;
+
     private final AdminMapper adminMapper;
+
+    private final AuthServiceClient authServiceClient;
 
 
     // ============================================================
@@ -46,17 +53,33 @@ public class TicketService {
         SupportTicket ticket =
                 adminMapper.toTicketEntity(request);
 
-        ticket.setCustomerId(customerId);
-        ticket.setTicketNumber(generateTicketNumber());
-        ticket.setStatus(TicketStatus.OPEN);
+        ticket.setCustomerId(
+                customerId
+        );
 
-        OffsetDateTime now = OffsetDateTime.now();
+        ticket.setTicketNumber(
+                generateTicketNumber()
+        );
 
-        ticket.setCreatedAt(now);
-        ticket.setUpdatedAt(now);
+        ticket.setStatus(
+                TicketStatus.OPEN
+        );
+
+        OffsetDateTime now =
+                OffsetDateTime.now();
+
+        ticket.setCreatedAt(
+                now
+        );
+
+        ticket.setUpdatedAt(
+                now
+        );
 
         SupportTicket savedTicket =
-                ticketRepository.save(ticket);
+                ticketRepository.save(
+                        ticket
+                );
 
         auditLogService.log(
                 customerId,
@@ -69,7 +92,9 @@ public class TicketService {
                 httpRequest
         );
 
-        return adminMapper.toTicketResponse(savedTicket);
+        return adminMapper.toTicketResponse(
+                savedTicket
+        );
     }
 
 
@@ -91,7 +116,9 @@ public class TicketService {
                         )
                 );
 
-        return adminMapper.toTicketResponse(ticket);
+        return adminMapper.toTicketResponse(
+                ticket
+        );
     }
 
 
@@ -109,7 +136,9 @@ public class TicketService {
                         pageable
                 );
 
-        return toPageResponse(page);
+        return toPageResponse(
+                page
+        );
     }
 
 
@@ -135,7 +164,9 @@ public class TicketService {
                         )
                 );
 
-        return adminMapper.toTicketResponse(ticket);
+        return adminMapper.toTicketResponse(
+                ticket
+        );
     }
 
 
@@ -171,7 +202,9 @@ public class TicketService {
         );
 
         SupportTicket updated =
-                saveWithOptimisticLock(ticket);
+                saveWithOptimisticLock(
+                        ticket
+                );
 
         auditLogService.log(
                 agentId,
@@ -192,7 +225,9 @@ public class TicketService {
                 httpRequest
         );
 
-        return adminMapper.toTicketResponse(updated);
+        return adminMapper.toTicketResponse(
+                updated
+        );
     }
 
 
@@ -210,7 +245,9 @@ public class TicketService {
                         pageable
                 );
 
-        return toPageResponse(page);
+        return toPageResponse(
+                page
+        );
     }
 
 
@@ -228,7 +265,9 @@ public class TicketService {
         SupportTicket ticket =
                 findTicket(ticketId);
 
-        return adminMapper.toTicketResponse(ticket);
+        return adminMapper.toTicketResponse(
+                ticket
+        );
     }
 
 
@@ -257,7 +296,9 @@ public class TicketService {
         );
 
         SupportTicket updated =
-                saveWithOptimisticLock(ticket);
+                saveWithOptimisticLock(
+                        ticket
+                );
 
         auditLogService.log(
                 adminId,
@@ -278,7 +319,9 @@ public class TicketService {
                 httpRequest
         );
 
-        return adminMapper.toTicketResponse(updated);
+        return adminMapper.toTicketResponse(
+                updated
+        );
     }
 
 
@@ -294,20 +337,62 @@ public class TicketService {
         SupportTicket ticket =
                 findTicket(ticketId);
 
+
+        // ========================================================
+        // CHECK CLOSED TICKET
+        // ========================================================
+
         if (ticket.getStatus() == TicketStatus.CLOSED) {
+
             throw new IllegalStateException(
                     "Closed tickets cannot be assigned"
             );
         }
 
+
+        // ========================================================
+        // VALIDATE AGENT ID
+        // ========================================================
+
         if (request.agentId() == null) {
+
             throw new IllegalArgumentException(
                     "Agent ID is required"
             );
         }
 
+
+        // ========================================================
+        // GET ADMIN JWT
+        // ========================================================
+
+        String authorizationHeader =
+                httpRequest.getHeader(
+                        "Authorization"
+                );
+
+
+        // ========================================================
+        // VERIFY SUPPORT AGENT
+        // ========================================================
+
+        authServiceClient.validateSupportAgent(
+                request.agentId(),
+                authorizationHeader
+        );
+
+
+        // ========================================================
+        // GET PREVIOUS AGENT
+        // ========================================================
+
         Long previousAgentId =
                 ticket.getAssignedAgentId();
+
+
+        // ========================================================
+        // ASSIGN NEW AGENT
+        // ========================================================
 
         ticket.setAssignedAgentId(
                 request.agentId()
@@ -317,8 +402,20 @@ public class TicketService {
                 OffsetDateTime.now()
         );
 
+
+        // ========================================================
+        // SAVE
+        // ========================================================
+
         SupportTicket updated =
-                saveWithOptimisticLock(ticket);
+                saveWithOptimisticLock(
+                        ticket
+                );
+
+
+        // ========================================================
+        // CREATE AUDIT DESCRIPTION
+        // ========================================================
 
         String description;
 
@@ -330,7 +427,8 @@ public class TicketService {
                             + " to support agent "
                             + request.agentId();
 
-        } else if (!previousAgentId.equals(request.agentId())) {
+        } else if (!previousAgentId.equals(
+                request.agentId())) {
 
             description =
                     "Admin reassigned ticket "
@@ -349,6 +447,11 @@ public class TicketService {
                             + request.agentId();
         }
 
+
+        // ========================================================
+        // AUDIT
+        // ========================================================
+
         auditLogService.log(
                 adminId,
                 "ADMIN",
@@ -359,7 +462,14 @@ public class TicketService {
                 httpRequest
         );
 
-        return adminMapper.toTicketResponse(updated);
+
+        // ========================================================
+        // RESPONSE
+        // ========================================================
+
+        return adminMapper.toTicketResponse(
+                updated
+        );
     }
 
 
@@ -371,9 +481,13 @@ public class TicketService {
             Pageable pageable) {
 
         Page<SupportTicket> page =
-                ticketRepository.findAll(pageable);
+                ticketRepository.findAll(
+                        pageable
+                );
 
-        return toPageResponse(page);
+        return toPageResponse(
+                page
+        );
     }
 
 
@@ -386,6 +500,7 @@ public class TicketService {
             Pageable pageable) {
 
         if (status == null) {
+
             throw new IllegalArgumentException(
                     "Ticket status is required"
             );
@@ -397,7 +512,9 @@ public class TicketService {
                         pageable
                 );
 
-        return toPageResponse(page);
+        return toPageResponse(
+                page
+        );
     }
 
 
@@ -413,24 +530,28 @@ public class TicketService {
             UpdateTicketRequest request) {
 
         if (request.subject() != null) {
+
             ticket.setSubject(
                     request.subject()
             );
         }
 
         if (request.category() != null) {
+
             ticket.setCategory(
                     request.category()
             );
         }
 
         if (request.priority() != null) {
+
             ticket.setPriority(
                     request.priority()
             );
         }
 
         if (request.status() != null) {
+
             updateStatus(
                     ticket,
                     request.status()
@@ -447,24 +568,28 @@ public class TicketService {
             UpdateTicketRequest request) {
 
         if (request.subject() != null) {
+
             ticket.setSubject(
                     request.subject()
             );
         }
 
         if (request.category() != null) {
+
             ticket.setCategory(
                     request.category()
             );
         }
 
         if (request.priority() != null) {
+
             ticket.setPriority(
                     request.priority()
             );
         }
 
         if (request.status() != null) {
+
             updateStatus(
                     ticket,
                     request.status()
@@ -488,7 +613,9 @@ public class TicketService {
                 nextStatus
         );
 
-        ticket.setStatus(nextStatus);
+        ticket.setStatus(
+                nextStatus
+        );
 
         if (nextStatus == TicketStatus.RESOLVED
                 || nextStatus == TicketStatus.CLOSED) {
@@ -563,22 +690,26 @@ public class TicketService {
             TicketStatus next) {
 
         if (current == null) {
+
             throw new IllegalStateException(
                     "Ticket has no current status"
             );
         }
 
         if (next == null) {
+
             throw new IllegalArgumentException(
                     "Ticket status is required"
             );
         }
 
         if (current == next) {
+
             return;
         }
 
         if (current == TicketStatus.CLOSED) {
+
             throw new IllegalStateException(
                     "Closed tickets cannot be modified"
             );
@@ -610,17 +741,19 @@ public class TicketService {
             Long ticketId) {
 
         if (ticketId == null) {
+
             throw new IllegalArgumentException(
                     "Ticket ID is required"
             );
         }
 
-        return ticketRepository.findById(ticketId)
-                .orElseThrow(() ->
-                        new IllegalArgumentException(
-                                "Ticket not found"
-                        )
-                );
+        return ticketRepository.findById(
+                ticketId
+        ).orElseThrow(() ->
+                new IllegalArgumentException(
+                        "Ticket not found"
+                )
+        );
     }
 
 
@@ -634,9 +767,12 @@ public class TicketService {
 
         try {
 
-            return ticketRepository.save(ticket);
+            return ticketRepository.save(
+                    ticket
+            );
 
-        } catch (OptimisticLockingFailureException exception) {
+        } catch (
+                OptimisticLockingFailureException exception) {
 
             throw new IllegalStateException(
                     "Ticket was modified by another request. "
@@ -656,14 +792,21 @@ public class TicketService {
         return new PageResponse<>(
                 page.getContent()
                         .stream()
-                        .map(adminMapper::toTicketResponse)
+                        .map(
+                                adminMapper::toTicketResponse
+                        )
                         .toList(),
 
                 page.getNumber(),
+
                 page.getSize(),
+
                 page.getTotalElements(),
+
                 page.getTotalPages(),
+
                 page.isFirst(),
+
                 page.isLast()
         );
     }

@@ -1,5 +1,6 @@
 package com.serviceconnect.booking.controller;
 
+import com.serviceconnect.booking.client.ProviderServiceClient;
 import com.serviceconnect.booking.dto.request.CreateServiceRequest;
 import com.serviceconnect.booking.dto.request.UpdateServiceRequestStatus;
 import com.serviceconnect.booking.dto.response.ServiceRequestResponse;
@@ -28,13 +29,15 @@ public class BookingController {
 
     private final BookingService bookingService;
 
+    private final ProviderServiceClient providerServiceClient;
+
 
     // ============================================================
     // CUSTOMER - CREATE SERVICE REQUEST
     // ============================================================
 
     @PostMapping("/requests")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<ServiceRequestResponse> createRequest(
 
             @Valid
@@ -46,7 +49,7 @@ public class BookingController {
 
         /*
          * Customer ID comes from JWT.
-         * It is NOT accepted from the request body.
+         * customerId from request body is ignored.
          */
         Long customerId =
                 getUserId(jwt);
@@ -67,7 +70,7 @@ public class BookingController {
     // ============================================================
 
     @GetMapping("/requests/{requestId}")
-    @PreAuthorize("hasAnyRole('USER', 'PROVIDER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'PROVIDER', 'ADMIN')")
     public ResponseEntity<ServiceRequestResponse> getRequest(
 
             @PathVariable
@@ -82,6 +85,25 @@ public class BookingController {
 
         String authority =
                 getAuthority(jwt);
+
+        /*
+         * Provider JWT contains USER ID.
+         *
+         * Booking table stores PROVIDER ID.
+         *
+         * Therefore convert:
+         *
+         * userId -> providerId
+         */
+        if ("ROLE_PROVIDER".equals(authority)) {
+
+            Long providerId =
+                    providerServiceClient.getProviderIdByUserId(
+                            userId
+                    );
+
+            userId = providerId;
+        }
 
         return ResponseEntity.ok(
                 bookingService.getRequestById(
@@ -98,7 +120,7 @@ public class BookingController {
     // ============================================================
 
     @GetMapping("/customers/requests")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<List<ServiceRequestResponse>>
     getCustomerRequests(
 
@@ -128,8 +150,13 @@ public class BookingController {
             @AuthenticationPrincipal
             Jwt jwt) {
 
-        Long providerId =
+        Long userId =
                 getUserId(jwt);
+
+        Long providerId =
+                providerServiceClient.getProviderIdByUserId(
+                        userId
+                );
 
         return ResponseEntity.ok(
                 bookingService.getProviderRequests(
@@ -154,8 +181,13 @@ public class BookingController {
             @AuthenticationPrincipal
             Jwt jwt) {
 
-        Long providerId =
+        Long userId =
                 getUserId(jwt);
+
+        Long providerId =
+                providerServiceClient.getProviderIdByUserId(
+                        userId
+                );
 
         return ResponseEntity.ok(
                 bookingService.getProviderRequestsByStatus(
@@ -171,7 +203,7 @@ public class BookingController {
     // ============================================================
 
     @PatchMapping("/requests/{requestId}/cancel")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<ServiceRequestResponse> cancelRequest(
 
             @PathVariable
@@ -214,8 +246,25 @@ public class BookingController {
             @AuthenticationPrincipal
             Jwt jwt) {
 
-        Long providerId =
+        Long userId =
                 getUserId(jwt);
+
+        /*
+         * JWT gives USER ID.
+         *
+         * Booking uses PROVIDER ID.
+         *
+         * Example:
+         *
+         * JWT sub = 7
+         * Provider ID = 3
+         *
+         * Therefore resolve provider ID first.
+         */
+        Long providerId =
+                providerServiceClient.getProviderIdByUserId(
+                        userId
+                );
 
         String status =
                 request.status()
@@ -275,7 +324,8 @@ public class BookingController {
         String subject =
                 jwt.getSubject();
 
-        if (subject == null || subject.isBlank()) {
+        if (subject == null
+                || subject.isBlank()) {
 
             throw new IllegalStateException(
                     "User ID not found in JWT"
@@ -304,7 +354,8 @@ public class BookingController {
         String role =
                 jwt.getClaimAsString("role");
 
-        if (role == null || role.isBlank()) {
+        if (role == null
+                || role.isBlank()) {
 
             throw new IllegalStateException(
                     "Role not found in JWT"

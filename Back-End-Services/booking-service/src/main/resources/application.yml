@@ -36,3 +36,10 @@ management:
 jwt:
   secret: ${JWT_SECRET}
   issuer: serviceconnect-auth
+
+provider-service:
+  url: http://localhost:8084
+
+services:
+  catalog:
+    url: http://localhost:8086

@@ -7,7 +7,9 @@ import com.serviceconnect.provider.entity.Provider;
 import com.serviceconnect.provider.entity.ProviderPhoto;
 import com.serviceconnect.provider.repository.ProviderPhotoRepository;
 import com.serviceconnect.provider.repository.ProviderRepository;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,14 +37,18 @@ public class ProviderService {
             CreateProviderRequest request) {
 
         if (providerRepository.existsByUserId(userId)) {
-            throw new IllegalStateException(
+
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
                     "Provider profile already exists"
             );
         }
 
-        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime now =
+                OffsetDateTime.now();
 
-        Provider provider = new Provider();
+        Provider provider =
+                new Provider();
 
         provider.setUserId(userId);
 
@@ -80,16 +86,27 @@ public class ProviderService {
                 request.postalCode()
         );
 
-        // New providers always start as PENDING
-        provider.setStatus("PENDING");
+        // New providers always start as PENDING.
+        provider.setStatus(
+                "PENDING"
+        );
 
-        provider.setCreatedAt(now);
-        provider.setUpdatedAt(now);
+        provider.setCreatedAt(
+                now
+        );
+
+        provider.setUpdatedAt(
+                now
+        );
 
         Provider savedProvider =
-                providerRepository.save(provider);
+                providerRepository.save(
+                        provider
+                );
 
-        return toResponse(savedProvider);
+        return toResponse(
+                savedProvider
+        );
     }
 
 
@@ -102,7 +119,8 @@ public class ProviderService {
             Long providerId) {
 
         Provider provider =
-                providerRepository.findById(providerId)
+                providerRepository
+                        .findById(providerId)
                         .orElseThrow(() ->
                                 new ResponseStatusException(
                                         HttpStatus.NOT_FOUND,
@@ -110,7 +128,9 @@ public class ProviderService {
                                 )
                         );
 
-        return toResponse(provider);
+        return toResponse(
+                provider
+        );
     }
 
 
@@ -123,7 +143,8 @@ public class ProviderService {
             Long userId) {
 
         Provider provider =
-                providerRepository.findByUserId(userId)
+                providerRepository
+                        .findByUserId(userId)
                         .orElseThrow(() ->
                                 new ResponseStatusException(
                                         HttpStatus.NOT_FOUND,
@@ -131,26 +152,90 @@ public class ProviderService {
                                 )
                         );
 
-        return toResponse(provider);
+        return toResponse(
+                provider
+        );
+    }
+
+
+    // ============================================================
+    // ADMIN - GET ALL PROVIDERS
+    // ============================================================
+
+    @Transactional(readOnly = true)
+    public List<ProviderResponse> getAllProviders() {
+
+        return providerRepository
+                .findAll()
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+
+    // ============================================================
+    // ADMIN - GET PROVIDERS BY STATUS
+    // ============================================================
+
+    @Transactional(readOnly = true)
+    public List<ProviderResponse> getProvidersByStatus(
+            String status) {
+
+        if (status == null
+                || status.isBlank()) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Provider status is required"
+            );
+        }
+
+        String normalizedStatus =
+                status.trim().toUpperCase();
+
+        if (!normalizedStatus.equals("PENDING")
+                && !normalizedStatus.equals("APPROVED")
+                && !normalizedStatus.equals("REJECTED")
+                && !normalizedStatus.equals("SUSPENDED")) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Invalid provider status"
+            );
+        }
+
+        return providerRepository
+                .findByStatus(normalizedStatus)
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
 
     // ============================================================
     // UPDATE PROVIDER
+    // PROVIDER CAN UPDATE ONLY OWN PROFILE
     // ============================================================
 
     public ProviderResponse updateProvider(
             Long providerId,
+            Long authenticatedUserId,
             CreateProviderRequest request) {
 
         Provider provider =
-                providerRepository.findById(providerId)
+                providerRepository
+                        .findById(providerId)
                         .orElseThrow(() ->
                                 new ResponseStatusException(
                                         HttpStatus.NOT_FOUND,
                                         "Provider not found"
                                 )
                         );
+
+        validateOwnership(
+                provider,
+                authenticatedUserId
+        );
 
         provider.setBusinessName(
                 request.businessName().trim()
@@ -191,9 +276,13 @@ public class ProviderService {
         );
 
         Provider updatedProvider =
-                providerRepository.save(provider);
+                providerRepository.save(
+                        provider
+                );
 
-        return toResponse(updatedProvider);
+        return toResponse(
+                updatedProvider
+        );
     }
 
 
@@ -206,7 +295,8 @@ public class ProviderService {
             Long providerId) {
 
         Provider provider =
-                providerRepository.findById(providerId)
+                providerRepository
+                        .findById(providerId)
                         .orElseThrow(() ->
                                 new ResponseStatusException(
                                         HttpStatus.NOT_FOUND,
@@ -214,7 +304,9 @@ public class ProviderService {
                                 )
                         );
 
-        providerRepository.delete(provider);
+        providerRepository.delete(
+                provider
+        );
     }
 
 
@@ -232,13 +324,23 @@ public class ProviderService {
             String status) {
 
         Provider provider =
-                providerRepository.findById(providerId)
+                providerRepository
+                        .findById(providerId)
                         .orElseThrow(() ->
                                 new ResponseStatusException(
                                         HttpStatus.NOT_FOUND,
                                         "Provider not found"
                                 )
                         );
+
+        if (status == null
+                || status.isBlank()) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Provider status is required"
+            );
+        }
 
         String newStatus =
                 status.trim().toUpperCase();
@@ -253,16 +355,22 @@ public class ProviderService {
             );
         }
 
-        provider.setStatus(newStatus);
+        provider.setStatus(
+                newStatus
+        );
 
         provider.setUpdatedAt(
                 OffsetDateTime.now()
         );
 
         Provider updatedProvider =
-                providerRepository.save(provider);
+                providerRepository.save(
+                        provider
+                );
 
-        return toResponse(updatedProvider);
+        return toResponse(
+                updatedProvider
+        );
     }
 
 
@@ -290,7 +398,8 @@ public class ProviderService {
             Long providerId) {
 
         Provider provider =
-                providerRepository.findById(providerId)
+                providerRepository
+                        .findById(providerId)
                         .orElseThrow(() ->
                                 new ResponseStatusException(
                                         HttpStatus.NOT_FOUND,
@@ -307,21 +416,26 @@ public class ProviderService {
             );
         }
 
-        return toResponse(provider);
+        return toResponse(
+                provider
+        );
     }
 
 
     // ============================================================
     // UPDATE PROVIDER LIVE LOCATION
+    // PROVIDER CAN UPDATE ONLY OWN LOCATION
     // ============================================================
 
     public ProviderResponse updateProviderLocation(
             Long providerId,
+            Long authenticatedUserId,
             Double latitude,
             Double longitude) {
 
         Provider provider =
-                providerRepository.findById(providerId)
+                providerRepository
+                        .findById(providerId)
                         .orElseThrow(() ->
                                 new ResponseStatusException(
                                         HttpStatus.NOT_FOUND,
@@ -329,17 +443,85 @@ public class ProviderService {
                                 )
                         );
 
-        provider.setLatitude(latitude);
-        provider.setLongitude(longitude);
+        validateOwnership(
+                provider,
+                authenticatedUserId
+        );
+
+        if (latitude == null
+                || longitude == null) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Latitude and longitude are required"
+            );
+        }
+
+        if (latitude < -90.0
+                || latitude > 90.0) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Latitude must be between -90 and 90"
+            );
+        }
+
+        if (longitude < -180.0
+                || longitude > 180.0) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Longitude must be between -180 and 180"
+            );
+        }
+
+        provider.setLatitude(
+                latitude
+        );
+
+        provider.setLongitude(
+                longitude
+        );
 
         provider.setUpdatedAt(
                 OffsetDateTime.now()
         );
 
         Provider updatedProvider =
-                providerRepository.save(provider);
+                providerRepository.save(
+                        provider
+                );
 
-        return toResponse(updatedProvider);
+        return toResponse(
+                updatedProvider
+        );
+    }
+
+
+    // ============================================================
+    // VALIDATE PROVIDER OWNERSHIP
+    // ============================================================
+
+    private void validateOwnership(
+            Provider provider,
+            Long authenticatedUserId) {
+
+        if (authenticatedUserId == null) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Authentication required"
+            );
+        }
+
+        if (!provider.getUserId()
+                .equals(authenticatedUserId)) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "You can only modify your own provider profile"
+            );
+        }
     }
 
 

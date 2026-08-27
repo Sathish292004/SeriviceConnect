@@ -8,59 +8,28 @@ import jakarta.validation.constraints.Size;
 
 public record CreateServiceRequest(
 
-        @NotNull
+        @NotNull(message = "Provider ID is required")
         Long providerId,
 
-        @NotBlank
-        @Size(max = 100)
-        String serviceType,
+        @NotNull(message = "Catalog item ID is required")
+        Long catalogItemId,
 
-        @Size(max = 2000)
+        @NotBlank(message = "Description is required")
+        @Size(max = 1000, message = "Description cannot exceed 1000 characters")
         String description,
 
-        @NotBlank
-        @Size(max = 500)
+        @NotBlank(message = "Service address is required")
+        @Size(max = 500, message = "Service address cannot exceed 500 characters")
         String serviceAddress,
 
-        @DecimalMin(
-                value = "-90.0",
-                message = "Latitude must be between -90 and 90"
-        )
-        @DecimalMax(
-                value = "90.0",
-                message = "Latitude must be between -90 and 90"
-        )
+        @NotNull(message = "Latitude is required")
+        @DecimalMin(value = "-90.0")
+        @DecimalMax(value = "90.0")
         Double latitude,
 
-        @DecimalMin(
-                value = "-180.0",
-                message = "Longitude must be between -180 and 180"
-        )
-        @DecimalMax(
-                value = "180.0",
-                message = "Longitude must be between -180 and 180"
-        )
+        @NotNull(message = "Longitude is required")
+        @DecimalMin(value = "-180.0")
+        @DecimalMax(value = "180.0")
         Double longitude
-
 ) {
-
-    // ============================================================
-    // COORDINATE VALIDATION
-    // ============================================================
-
-    public void validateCoordinates() {
-
-        // Both coordinates omitted -> allowed
-        if (latitude == null && longitude == null) {
-            return;
-        }
-
-        // Only one coordinate provided -> not allowed
-        if (latitude == null || longitude == null) {
-
-            throw new IllegalArgumentException(
-                    "Latitude and longitude must be provided together"
-            );
-        }
-    }
 }

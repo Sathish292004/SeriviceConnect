@@ -27,3 +27,6 @@ app:
     secret: ${JWT_SECRET}
     issuer: serviceconnect-auth
     access-token-expiration: 900000
+
+auth-service:
+  url: http://localhost:8081

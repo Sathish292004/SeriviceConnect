@@ -31,10 +31,49 @@ public class UserServiceClient {
     public String getCustomerPhone(
             Long customerId) {
 
-        UserResponse response =
-                getUser(customerId);
+        String authorization =
+                getAuthorizationHeader();
 
-        return response.phone();
+        try {
+
+            String phone =
+                    restClientBuilder
+                            .baseUrl(USER_SERVICE_URL)
+                            .build()
+                            .get()
+                            .uri(
+                                    "/api/users/{id}/phone",
+                                    customerId
+                            )
+                            .header(
+                                    HttpHeaders.AUTHORIZATION,
+                                    authorization
+                            )
+                            .retrieve()
+                            .body(String.class);
+
+            if (phone == null
+                    || phone.isBlank()) {
+
+                throw new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Customer phone not found"
+                );
+            }
+
+            return phone;
+
+        } catch (ResponseStatusException exception) {
+
+            throw exception;
+
+        } catch (RestClientException exception) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "User service is currently unavailable"
+            );
+        }
     }
 
 
@@ -59,52 +98,8 @@ public class UserServiceClient {
     private UserResponse getUser(
             Long userId) {
 
-        ServletRequestAttributes attributes =
-                (ServletRequestAttributes)
-                        RequestContextHolder.getRequestAttributes();
-
-
-        // ========================================================
-        // HTTP REQUEST NOT FOUND
-        // ========================================================
-
-        if (attributes == null) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.INTERNAL_SERVER_ERROR,
-                    "No current HTTP request found"
-            );
-        }
-
-
-        // ========================================================
-        // GET AUTHORIZATION HEADER
-        // ========================================================
-
         String authorization =
-                attributes.getRequest()
-                        .getHeader(
-                                HttpHeaders.AUTHORIZATION
-                        );
-
-
-        // ========================================================
-        // AUTHORIZATION HEADER MISSING
-        // ========================================================
-
-        if (authorization == null
-                || authorization.isBlank()) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED,
-                    "Authorization header is missing"
-            );
-        }
-
-
-        // ========================================================
-        // CALL USER SERVICE
-        // ========================================================
+                getAuthorizationHeader();
 
         try {
 
@@ -124,11 +119,6 @@ public class UserServiceClient {
                             .retrieve()
                             .body(UserResponse.class);
 
-
-            // ====================================================
-            // EMPTY RESPONSE
-            // ====================================================
-
             if (response == null) {
 
                 throw new ResponseStatusException(
@@ -137,24 +127,60 @@ public class UserServiceClient {
                 );
             }
 
-
             return response;
-
 
         } catch (ResponseStatusException exception) {
 
-            // Preserve our intentional HTTP status.
             throw exception;
-
 
         } catch (RestClientException exception) {
 
-            // User service/network problem.
             throw new ResponseStatusException(
                     HttpStatus.SERVICE_UNAVAILABLE,
                     "User service is currently unavailable"
             );
         }
+    }
+
+
+    // ============================================================
+    // GET AUTHORIZATION HEADER
+    // ============================================================
+
+    private String getAuthorizationHeader() {
+
+        ServletRequestAttributes attributes =
+                (ServletRequestAttributes)
+                        RequestContextHolder.getRequestAttributes();
+
+
+        if (attributes == null) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "No current HTTP request found"
+            );
+        }
+
+
+        String authorization =
+                attributes.getRequest()
+                        .getHeader(
+                                HttpHeaders.AUTHORIZATION
+                        );
+
+
+        if (authorization == null
+                || authorization.isBlank()) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Authorization header is missing"
+            );
+        }
+
+
+        return authorization;
     }
 
 

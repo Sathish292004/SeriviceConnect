@@ -2,19 +2,17 @@ package com.serviceconnect.auth.controller;
 
 import com.serviceconnect.auth.dto.request.LoginRequest;
 import com.serviceconnect.auth.dto.request.RegisterRequest;
-import com.serviceconnect.auth.dto.response.LoginResponse;
-import com.serviceconnect.auth.dto.response.MeResponse;
-import com.serviceconnect.auth.dto.response.RegisterResponse;
+import com.serviceconnect.auth.dto.response.*;
 import com.serviceconnect.auth.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import com.serviceconnect.auth.dto.request.RefreshTokenRequest;
-import com.serviceconnect.auth.dto.response.RefreshTokenResponse;
 import com.serviceconnect.auth.dto.request.LogoutRequest;
 
 @RestController
@@ -103,5 +101,16 @@ public class AuthController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(authService.registerProvider(request));
+    }
+
+    @GetMapping("/internal/users/{userId}/role")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<UserRoleResponse> getUserRole(
+            @PathVariable Long userId
+    ) {
+
+        return ResponseEntity.ok(
+                authService.getUserRole(userId)
+        );
     }
 }

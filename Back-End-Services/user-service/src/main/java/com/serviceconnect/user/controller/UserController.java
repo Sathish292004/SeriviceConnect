@@ -255,4 +255,16 @@ public class UserController {
                 "User ID not found in authentication"
         );
     }
+
+    // =========================
+// GET CUSTOMER PHONE
+// INTERNAL SERVICE USE
+// =========================
+
+    @GetMapping("/{id}/phone")
+    public String getCustomerPhone(
+            @PathVariable Long id) {
+
+        return userService.getCustomerPhone(id);
+    }
 }

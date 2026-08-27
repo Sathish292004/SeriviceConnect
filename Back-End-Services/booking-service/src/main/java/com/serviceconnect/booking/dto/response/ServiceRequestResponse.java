@@ -6,6 +6,7 @@ public record ServiceRequestResponse(
         Long id,
         Long customerId,
         Long providerId,
+        Long catalogItemId,
         String serviceType,
         String description,
         String serviceAddress,

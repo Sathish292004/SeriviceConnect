@@ -1,5 +1,7 @@
 package com.serviceconnect.booking.service;
 
+import com.serviceconnect.booking.client.CatalogServiceClient;
+import com.serviceconnect.booking.client.ProviderServiceClient;
 import com.serviceconnect.booking.client.UserServiceClient;
 import com.serviceconnect.booking.dto.request.CreateServiceRequest;
 import com.serviceconnect.booking.dto.response.ServiceRequestResponse;
@@ -22,7 +24,12 @@ import java.util.List;
 public class BookingService {
 
     private final ServiceRequestRepository serviceRequestRepository;
+
     private final UserServiceClient userServiceClient;
+
+    private final ProviderServiceClient providerServiceClient;
+
+    private final CatalogServiceClient catalogServiceClient;
 
 
     // ============================================================
@@ -34,34 +41,57 @@ public class BookingService {
             CreateServiceRequest request) {
 
         // ========================================================
-        // PREVENT SELF-BOOKING
+        // VALIDATE PROVIDER
         // ========================================================
 
-        if (customerId.equals(request.providerId())) {
+        providerServiceClient.validateApprovedProvider(
+                request.providerId()
+        );
+
+
+        // ========================================================
+        // VALIDATE CATALOG ITEM
+        // ========================================================
+
+        CatalogServiceClient.CatalogItemResponse catalogItem =
+                catalogServiceClient.getCatalogItem(
+                        request.catalogItemId(),
+                        null
+                );
+
+
+        if (catalogItem == null) {
 
             throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Customer cannot select themselves as provider"
+                    HttpStatus.NOT_FOUND,
+                    "Catalog item not found"
             );
         }
 
 
         // ========================================================
-        // VALIDATE SELECTED PROVIDER
+        // CATALOG ITEM MUST BE ACTIVE
         // ========================================================
 
-        String providerRole =
-                userServiceClient.getUserRole(
-                        request.providerId()
-                );
-
-        if (providerRole == null
-                || !"PROVIDER".equalsIgnoreCase(
-                providerRole.trim())) {
+        if (!Boolean.TRUE.equals(catalogItem.active())) {
 
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "Selected user is not a service provider"
+                    "Catalog item is not active"
+            );
+        }
+
+
+        // ========================================================
+        // CATALOG ITEM MUST BELONG TO PROVIDER
+        // ========================================================
+
+        if (!request.providerId()
+                .equals(catalogItem.providerId())) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Catalog item does not belong to selected provider"
             );
         }
 
@@ -78,52 +108,79 @@ public class BookingService {
 
 
         // Customer ID comes from JWT.
+
         serviceRequest.setCustomerId(
                 customerId
         );
+
 
         serviceRequest.setProviderId(
                 request.providerId()
         );
 
-        serviceRequest.setServiceType(
-                request.serviceType().trim()
+
+        // Store Catalog reference.
+
+        serviceRequest.setCatalogItemId(
+                catalogItem.id()
         );
+
+
+        // Store catalog name as historical snapshot.
+
+        serviceRequest.setServiceType(
+                catalogItem.name().trim()
+        );
+
 
         serviceRequest.setDescription(
                 request.description()
         );
 
+
         serviceRequest.setServiceAddress(
                 request.serviceAddress().trim()
         );
+
 
         serviceRequest.setLatitude(
                 request.latitude()
         );
 
+
         serviceRequest.setLongitude(
                 request.longitude()
         );
+
+
+        // Every new request starts as PENDING.
 
         serviceRequest.setStatus(
                 "PENDING"
         );
 
+
         serviceRequest.setCreatedAt(
                 now
         );
+
 
         serviceRequest.setUpdatedAt(
                 now
         );
 
 
+        // ========================================================
+        // SAVE
+        // ========================================================
+
         ServiceRequest savedRequest =
                 serviceRequestRepository.save(
                         serviceRequest
                 );
 
+
+        // Customer must NOT receive phone number.
 
         return toResponse(
                 savedRequest,
@@ -152,6 +209,9 @@ public class BookingService {
 
         if ("ROLE_ADMIN".equals(role)) {
 
+            // Admin can view any request,
+            // but must NOT receive customer phone.
+
             return toResponse(
                     request,
                     false
@@ -163,7 +223,11 @@ public class BookingService {
         // CUSTOMER
         // ========================================================
 
-        if ("ROLE_USER".equals(role)) {
+        if ("ROLE_CUSTOMER".equals(role)) {
+
+            /*
+             * Customer can only view their own request.
+             */
 
             if (!request.getCustomerId().equals(userId)) {
 
@@ -172,6 +236,9 @@ public class BookingService {
                         "You can only view your own requests"
                 );
             }
+
+
+            // Customer must never receive phone.
 
             return toResponse(
                     request,
@@ -186,6 +253,11 @@ public class BookingService {
 
         if ("ROLE_PROVIDER".equals(role)) {
 
+            /*
+             * Provider can only view requests assigned
+             * to that provider.
+             */
+
             if (!request.getProviderId().equals(userId)) {
 
                 throw new ResponseStatusException(
@@ -194,6 +266,11 @@ public class BookingService {
                 );
             }
 
+
+            /*
+             * Provider can see phone only after the request
+             * has been accepted or completed.
+             */
 
             boolean canSeePhone =
                     "ACCEPTED".equals(request.getStatus())
@@ -376,6 +453,8 @@ public class BookingService {
                 );
 
 
+        // Provider can now see customer phone.
+
         return toResponse(
                 updatedRequest,
                 true
@@ -419,6 +498,8 @@ public class BookingService {
                 );
 
 
+        // Rejected request -> no phone.
+
         return toResponse(
                 updatedRequest,
                 false
@@ -461,6 +542,8 @@ public class BookingService {
                         request
                 );
 
+
+        // Provider can still see customer phone.
 
         return toResponse(
                 updatedRequest,
@@ -696,6 +779,8 @@ public class BookingService {
                 request.getCustomerId(),
 
                 request.getProviderId(),
+
+                request.getCatalogItemId(),
 
                 request.getServiceType(),
 

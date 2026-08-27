@@ -7,7 +7,9 @@ import com.serviceconnect.user.exception.UserNotFoundException;
 import com.serviceconnect.user.exception.UserProfileAlreadyExistsException;
 import com.serviceconnect.user.mapper.UserMapper;
 import com.serviceconnect.user.repository.UserRepository;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,48 +23,108 @@ import java.util.List;
 public class UserService {
 
     private final UserRepository userRepository;
+
     private final UserMapper userMapper;
+
+
+    // ============================================================
+    // CREATE USER PROFILE
+    // ============================================================
 
     public UserResponse createUser(
             Long userId,
             UserRequest request) {
 
         if (userRepository.existsById(userId)) {
+
             throw new UserProfileAlreadyExistsException(
                     "User profile already exists"
             );
         }
 
-        User user = userMapper.toEntity(userId, request);
+        User user =
+                userMapper.toEntity(
+                        userId,
+                        request
+                );
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now =
+                LocalDateTime.now();
 
         user.setCreatedAt(now);
+
         user.setUpdatedAt(now);
 
-        User savedUser = userRepository.save(user);
+        User savedUser =
+                userRepository.save(user);
 
-        return userMapper.toResponse(savedUser);
+        return userMapper.toResponse(
+                savedUser
+        );
     }
+
+
+    // ============================================================
+    // GET USER BY ID
+    // ============================================================
 
     @Transactional(readOnly = true)
-    public UserResponse getById(Long id) {
+    public UserResponse getById(
+            Long id) {
 
-        User user = userRepository.findById(id)
-                .orElseThrow(() ->
-                        new UserNotFoundException("User not found"));
+        User user =
+                userRepository.findById(id)
+                        .orElseThrow(() ->
+                                new UserNotFoundException(
+                                        "User not found"
+                                )
+                        );
 
-        return userMapper.toResponse(user);
+        return userMapper.toResponse(
+                user
+        );
     }
+
+
+    // ============================================================
+    // GET ALL USERS
+    // ============================================================
 
     @Transactional(readOnly = true)
     public List<UserResponse> getAllUsers() {
 
-        return userRepository.findAll()
+        return userRepository
+                .findAll()
                 .stream()
                 .map(userMapper::toResponse)
                 .toList();
     }
+
+
+    // ============================================================
+    // GET CUSTOMER PHONE
+    // INTERNAL SERVICE USE
+    // ============================================================
+
+    @Transactional(readOnly = true)
+    public String getCustomerPhone(
+            Long userId) {
+
+        User user =
+                userRepository.findById(userId)
+                        .orElseThrow(() ->
+                                new UserNotFoundException(
+                                        "User not found"
+                                )
+                        );
+
+        return user.getPhone();
+    }
+
+
+    // ============================================================
+    // UPDATE USER
+    // ============================================================
 
     public UserResponse updateUser(
             Long authenticatedUserId,
@@ -70,37 +132,62 @@ public class UserService {
             UserRequest request) {
 
         if (!authenticatedUserId.equals(id)) {
+
             throw new AccessDeniedException(
                     "You are not allowed to update this user"
             );
         }
 
-        User existingUser = userRepository.findById(id)
-                .orElseThrow(() ->
-                        new UserNotFoundException("User not found"));
+        User existingUser =
+                userRepository.findById(id)
+                        .orElseThrow(() ->
+                                new UserNotFoundException(
+                                        "User not found"
+                                )
+                        );
 
-        userMapper.updateEntity(existingUser, request);
+        userMapper.updateEntity(
+                existingUser,
+                request
+        );
 
-        existingUser.setUpdatedAt(LocalDateTime.now());
+        existingUser.setUpdatedAt(
+                LocalDateTime.now()
+        );
 
-        User updatedUser = userRepository.save(existingUser);
+        User updatedUser =
+                userRepository.save(
+                        existingUser
+                );
 
-        return userMapper.toResponse(updatedUser);
+        return userMapper.toResponse(
+                updatedUser
+        );
     }
+
+
+    // ============================================================
+    // DELETE USER
+    // ============================================================
 
     public void deleteUser(
             Long authenticatedUserId,
             Long id) {
 
         if (!authenticatedUserId.equals(id)) {
+
             throw new AccessDeniedException(
                     "You are not allowed to delete this user"
             );
         }
 
-        User user = userRepository.findById(id)
-                .orElseThrow(() ->
-                        new UserNotFoundException("User not found"));
+        User user =
+                userRepository.findById(id)
+                        .orElseThrow(() ->
+                                new UserNotFoundException(
+                                        "User not found"
+                                )
+                        );
 
         userRepository.delete(user);
     }

@@ -1,0 +1,179 @@
+package com.serviceconnect.catalog.config;
+
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.convert.converter.Converter;
+
+import org.springframework.security.authentication.AbstractAuthenticationToken;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+
+import org.springframework.security.web.SecurityFilterChain;
+
+@Configuration
+@EnableMethodSecurity
+public class SecurityConfig {
+
+    // ============================================================
+    // JWT SECRET
+    // ============================================================
+
+    @Value("${JWT_SECRET}")
+    private String jwtSecret;
+
+
+    // ============================================================
+    // JWT DECODER
+    // ============================================================
+
+    @Bean
+    public JwtDecoder jwtDecoder() {
+
+        SecretKey secretKey = new SecretKeySpec(
+                jwtSecret.getBytes(),
+                "HmacSHA256"
+        );
+
+        return NimbusJwtDecoder
+                .withSecretKey(secretKey)
+                .build();
+    }
+
+
+    // ============================================================
+    // SECURITY FILTER CHAIN
+    // ============================================================
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http) throws Exception {
+
+        http
+
+                // ------------------------------------------------
+                // CSRF
+                // ------------------------------------------------
+
+                .csrf(csrf ->
+                        csrf.disable()
+                )
+
+                // ------------------------------------------------
+                // STATELESS SESSION
+                // ------------------------------------------------
+
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(
+                                SessionCreationPolicy.STATELESS
+                        )
+                )
+
+                // ------------------------------------------------
+                // AUTHORIZATION
+                // ------------------------------------------------
+
+                .authorizeHttpRequests(auth -> auth
+
+                        .requestMatchers(
+                                "/actuator/health",
+                                "/actuator/health/**"
+                        ).permitAll()
+
+                        .anyRequest().authenticated()
+                )
+
+                // ------------------------------------------------
+                // JWT RESOURCE SERVER
+                // ------------------------------------------------
+
+                .oauth2ResourceServer(oauth2 ->
+                        oauth2.jwt(jwt ->
+                                jwt.jwtAuthenticationConverter(
+                                        jwtAuthenticationConverter()
+                                )
+                        )
+                )
+
+                // ------------------------------------------------
+                // DISABLE FORM LOGIN / BASIC
+                // ------------------------------------------------
+
+                .formLogin(form ->
+                        form.disable()
+                )
+
+                .httpBasic(basic ->
+                        basic.disable()
+                );
+
+        return http.build();
+    }
+
+
+    // ============================================================
+    // JWT AUTHENTICATION CONVERTER
+    // ============================================================
+
+    @Bean
+    public Converter<Jwt, ? extends AbstractAuthenticationToken>
+    jwtAuthenticationConverter() {
+
+        JwtGrantedAuthoritiesConverter authoritiesConverter =
+                new JwtGrantedAuthoritiesConverter();
+
+        // --------------------------------------------------------
+        // Read custom "role" claim from JWT
+        // --------------------------------------------------------
+
+        authoritiesConverter.setAuthoritiesClaimName(
+                "role"
+        );
+
+        // --------------------------------------------------------
+        // USER
+        // PROVIDER
+        // ADMIN
+        //
+        // becomes:
+        //
+        // ROLE_USER
+        // ROLE_PROVIDER
+        // ROLE_ADMIN
+        // --------------------------------------------------------
+
+        authoritiesConverter.setAuthorityPrefix(
+                "ROLE_"
+        );
+
+        JwtAuthenticationConverter converter =
+                new JwtAuthenticationConverter();
+
+        converter.setJwtGrantedAuthoritiesConverter(
+                authoritiesConverter
+        );
+
+        // --------------------------------------------------------
+        // Authentication name = JWT subject
+        //
+        // sub = user ID
+        // --------------------------------------------------------
+
+        converter.setPrincipalClaimName(
+                "sub"
+        );
+
+        return converter;
+    }
+}

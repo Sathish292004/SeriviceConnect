@@ -3,6 +3,7 @@ package com.serviceconnect.admin.security;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -13,21 +14,54 @@ import java.util.Base64;
 public class JwtService {
 
     private final SecretKey signingKey;
+    private final String issuer;
+
+
+    // ============================================================
+    // CONSTRUCTOR
+    // ============================================================
 
     public JwtService(
-            @Value("${security.jwt.secret}") String secret) {
 
-        this.signingKey = Keys.hmacShaKeyFor(
-                Base64.getDecoder().decode(secret)
-        );
+            @Value("${security.jwt.secret}")
+            String secret,
+
+            @Value("${security.jwt.issuer}")
+            String issuer) {
+
+        this.signingKey =
+                Keys.hmacShaKeyFor(
+                        Base64.getDecoder()
+                                .decode(secret)
+                );
+
+        this.issuer = issuer;
     }
 
-    public Claims extractClaims(String token) {
+
+    // ============================================================
+    // EXTRACT AND VALIDATE JWT CLAIMS
+    // ============================================================
+
+    public Claims extractClaims(
+            String token) {
 
         return Jwts.parser()
-                .verifyWith(signingKey)
+
+                .verifyWith(
+                        signingKey
+                )
+
+                .requireIssuer(
+                        issuer
+                )
+
                 .build()
-                .parseSignedClaims(token)
+
+                .parseSignedClaims(
+                        token
+                )
+
                 .getPayload();
     }
 }
