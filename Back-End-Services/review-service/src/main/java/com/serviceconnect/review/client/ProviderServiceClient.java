@@ -7,60 +7,68 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+
 @Component
 @RequiredArgsConstructor
-public class BookingServiceClient {
+public class ProviderServiceClient {
 
     private final RestClient.Builder restClientBuilder;
 
-    @Value("${services.booking.url}")
-    private String bookingServiceUrl;
+
+    @Value("${services.provider.url}")
+    private String providerServiceUrl;
 
 
     // ============================================================
-    // GET BOOKING / SERVICE REQUEST BY ID
+    // GET PROVIDER BY ID
     // ============================================================
 
-    public BookingResponse getBookingById(
-            Long bookingId,
+    public ProviderResponse getProviderById(
+            Long providerId,
             String authorizationHeader) {
 
         return restClientBuilder
-                .baseUrl(bookingServiceUrl)
+                .baseUrl(providerServiceUrl)
                 .build()
                 .get()
                 .uri(
-                        "/api/v1/bookings/requests/{requestId}",
-                        bookingId
+                        "/api/v1/providers/{providerId}/public",
+                        providerId
                 )
                 .header(
                         HttpHeaders.AUTHORIZATION,
                         authorizationHeader
                 )
                 .retrieve()
-                .body(BookingResponse.class);
+                .body(ProviderResponse.class);
     }
 
 
     // ============================================================
-    // BOOKING RESPONSE
+    // PROVIDER RESPONSE
     // ============================================================
 
-    public record BookingResponse(
+    public record ProviderResponse(
 
             Long id,
 
-            Long customerId,
+            Long userId,
 
-            Long providerId,
-
-            Long catalogItemId,
-
-            String serviceType,
+            String businessName,
 
             String description,
 
-            String serviceAddress,
+            String phone,
+
+            String email,
+
+            String address,
+
+            String city,
+
+            String state,
+
+            String postalCode,
 
             Double latitude,
 
@@ -68,12 +76,11 @@ public class BookingServiceClient {
 
             String status,
 
-            String customerPhone,
-
             java.time.OffsetDateTime createdAt,
 
-            java.time.OffsetDateTime updatedAt
+            java.time.OffsetDateTime updatedAt,
 
+            Object photos
     ) {
     }
 }

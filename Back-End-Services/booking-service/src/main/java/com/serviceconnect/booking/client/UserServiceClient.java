@@ -2,6 +2,7 @@ package com.serviceconnect.booking.client;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -20,8 +21,8 @@ public class UserServiceClient {
 
     private final RestClient.Builder restClientBuilder;
 
-    private static final String USER_SERVICE_URL =
-            "http://localhost:8082";
+    @Value("${services.user.url}")
+    private String userServiceUrl;
 
 
     // ============================================================
@@ -31,14 +32,24 @@ public class UserServiceClient {
     public String getCustomerPhone(
             Long customerId) {
 
+        if (customerId == null || customerId <= 0) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Customer ID is required"
+            );
+        }
+
+
         String authorization =
                 getAuthorizationHeader();
+
 
         try {
 
             String phone =
                     restClientBuilder
-                            .baseUrl(USER_SERVICE_URL)
+                            .baseUrl(userServiceUrl)
                             .build()
                             .get()
                             .uri(
@@ -52,6 +63,7 @@ public class UserServiceClient {
                             .retrieve()
                             .body(String.class);
 
+
             if (phone == null
                     || phone.isBlank()) {
 
@@ -61,73 +73,9 @@ public class UserServiceClient {
                 );
             }
 
+
             return phone;
 
-        } catch (ResponseStatusException exception) {
-
-            throw exception;
-
-        } catch (RestClientException exception) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.SERVICE_UNAVAILABLE,
-                    "User service is currently unavailable"
-            );
-        }
-    }
-
-
-    // ============================================================
-    // GET USER ROLE
-    // ============================================================
-
-    public String getUserRole(
-            Long userId) {
-
-        UserResponse response =
-                getUser(userId);
-
-        return response.role();
-    }
-
-
-    // ============================================================
-    // GET USER FROM USER SERVICE
-    // ============================================================
-
-    private UserResponse getUser(
-            Long userId) {
-
-        String authorization =
-                getAuthorizationHeader();
-
-        try {
-
-            UserResponse response =
-                    restClientBuilder
-                            .baseUrl(USER_SERVICE_URL)
-                            .build()
-                            .get()
-                            .uri(
-                                    "/api/users/{id}",
-                                    userId
-                            )
-                            .header(
-                                    HttpHeaders.AUTHORIZATION,
-                                    authorization
-                            )
-                            .retrieve()
-                            .body(UserResponse.class);
-
-            if (response == null) {
-
-                throw new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "User not found"
-                );
-            }
-
-            return response;
 
         } catch (ResponseStatusException exception) {
 
@@ -181,25 +129,5 @@ public class UserServiceClient {
 
 
         return authorization;
-    }
-
-
-    // ============================================================
-    // USER RESPONSE
-    // ============================================================
-
-    private record UserResponse(
-
-            Long id,
-
-            String firstName,
-
-            String lastName,
-
-            String phone,
-
-            String role
-
-    ) {
     }
 }

@@ -51,14 +51,24 @@ public class BookingController {
          * Customer ID comes from JWT.
          * customerId from request body is ignored.
          */
+
         Long customerId =
                 getUserId(jwt);
+
+        /*
+         * Forward the customer's JWT to downstream services.
+         *
+         * Catalog Service may require authentication.
+         */
+        String authorizationHeader =
+                "Bearer " + jwt.getTokenValue();
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(
                         bookingService.createServiceRequest(
                                 customerId,
+                                authorizationHeader,
                                 request
                         )
                 );
@@ -91,10 +101,11 @@ public class BookingController {
          *
          * Booking table stores PROVIDER ID.
          *
-         * Therefore convert:
+         * Therefore, convert:
          *
          * userId -> providerId
          */
+
         if ("ROLE_PROVIDER".equals(authority)) {
 
             Long providerId =
@@ -261,6 +272,7 @@ public class BookingController {
          *
          * Therefore resolve provider ID first.
          */
+
         Long providerId =
                 providerServiceClient.getProviderIdByUserId(
                         userId

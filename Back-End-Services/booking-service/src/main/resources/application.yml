@@ -37,12 +37,15 @@ jwt:
   secret: ${JWT_SECRET}
   issuer: serviceconnect-auth
 
-provider-service:
-  url: http://localhost:8084
-
 services:
+  user:
+    url: http://localhost:8082
+
+  provider:
+    url: http://localhost:8084
+
   catalog:
     url: http://localhost:8086
-    
+
   review:
     url: http://localhost:8087

@@ -21,7 +21,7 @@ public class ProviderServiceClient {
 
     private final RestClient.Builder restClientBuilder;
 
-    @Value("${provider-service.url}")
+    @Value("${services.provider.url}")
     private String providerServiceUrl;
 
 

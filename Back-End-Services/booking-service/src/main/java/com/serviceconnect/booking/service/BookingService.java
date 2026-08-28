@@ -38,6 +38,7 @@ public class BookingService {
 
     public ServiceRequestResponse createServiceRequest(
             Long customerId,
+            String authorizationHeader,
             CreateServiceRequest request) {
 
         // ========================================================
@@ -56,7 +57,7 @@ public class BookingService {
         CatalogServiceClient.CatalogItemResponse catalogItem =
                 catalogServiceClient.getCatalogItem(
                         request.catalogItemId(),
-                        null
+                        authorizationHeader
                 );
 
 

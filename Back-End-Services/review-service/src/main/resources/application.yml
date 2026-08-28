@@ -38,3 +38,6 @@ management:
 services:
   booking:
     url: http://localhost:8085
+
+  provider:
+    url : http://localhost:8084

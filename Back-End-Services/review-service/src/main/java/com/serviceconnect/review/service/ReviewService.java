@@ -1,6 +1,7 @@
 package com.serviceconnect.review.service;
 
 import com.serviceconnect.review.client.BookingServiceClient;
+import com.serviceconnect.review.client.ProviderServiceClient;
 import com.serviceconnect.review.dto.request.ReviewRequest;
 import com.serviceconnect.review.dto.response.ReviewResponse;
 import com.serviceconnect.review.entity.Review;
@@ -19,8 +20,12 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ReviewService {
 
+
     private final ReviewRepository reviewRepository;
+
     private final BookingServiceClient bookingServiceClient;
+
+    private final ProviderServiceClient providerServiceClient;
 
 
     // ============================================================
@@ -126,25 +131,91 @@ public class ReviewService {
 
 
         // --------------------------------------------------------
-        // 7. Create review
+        // 7. Get provider from Provider Service
+        // --------------------------------------------------------
+
+        ProviderServiceClient.ProviderResponse provider;
+
+        try {
+
+            provider =
+                    providerServiceClient.getProviderById(
+                            request.providerId(),
+                            authorizationHeader
+                    );
+
+        } catch (Exception ex) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY,
+                    "Unable to verify provider with Provider Service"
+            );
+        }
+
+
+        // --------------------------------------------------------
+        // 8. Verify provider exists
+        // --------------------------------------------------------
+
+        if (provider == null) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Provider not found"
+            );
+        }
+
+
+        // --------------------------------------------------------
+        // 9. Verify provider is approved
+        // --------------------------------------------------------
+
+        if (!"APPROVED".equalsIgnoreCase(
+                provider.status())) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Provider is not currently approved"
+            );
+        }
+
+
+        // --------------------------------------------------------
+        // 10. Create review
         // --------------------------------------------------------
 
         Review review = new Review();
 
-        review.setBookingId(request.bookingId());
-        review.setCustomerId(customerId);
-        review.setProviderId(request.providerId());
-        review.setRating(request.rating());
-        review.setComment(request.comment());
+        review.setBookingId(
+                request.bookingId()
+        );
+
+        review.setCustomerId(
+                customerId
+        );
+
+        review.setProviderId(
+                request.providerId()
+        );
+
+        review.setRating(
+                request.rating()
+        );
+
+        review.setComment(
+                request.comment()
+        );
+
         review.setActive(true);
 
 
         // --------------------------------------------------------
-        // 8. Save review
+        // 11. Save review
         // --------------------------------------------------------
 
         Review saved =
                 reviewRepository.save(review);
+
 
         return toResponse(saved);
     }
@@ -154,10 +225,12 @@ public class ReviewService {
     // GET REVIEW BY ID
     // ============================================================
 
-    public ReviewResponse getById(Long id) {
+    public ReviewResponse getById(
+            Long id) {
 
         Review review =
-                reviewRepository.findById(id)
+                reviewRepository
+                        .findById(id)
                         .orElseThrow(() ->
                                 new ResponseStatusException(
                                         HttpStatus.NOT_FOUND,
@@ -262,7 +335,8 @@ public class ReviewService {
             ReviewRequest request) {
 
         Review review =
-                reviewRepository.findById(id)
+                reviewRepository
+                        .findById(id)
                         .orElseThrow(() ->
                                 new ResponseStatusException(
                                         HttpStatus.NOT_FOUND,
@@ -329,7 +403,8 @@ public class ReviewService {
             Long id) {
 
         Review review =
-                reviewRepository.findById(id)
+                reviewRepository
+                        .findById(id)
                         .orElseThrow(() ->
                                 new ResponseStatusException(
                                         HttpStatus.NOT_FOUND,
