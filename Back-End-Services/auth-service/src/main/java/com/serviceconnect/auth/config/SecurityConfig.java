@@ -232,7 +232,10 @@ public class SecurityConfig {
                         // Authenticated authentication endpoints
                         .requestMatchers(
                                 "/api/v1/auth/me",
-                                "/api/v1/auth/logout"
+                                "/api/v1/auth/logout",
+                                "/api/v1/auth/logout-all",
+                                "/api/v1/auth/me/security",
+                                "/api/v1/auth/me"
                         )
                         .authenticated()
 

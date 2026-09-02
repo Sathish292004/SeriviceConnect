@@ -3,31 +3,32 @@ package com.serviceconnect.auth.service;
 import com.serviceconnect.auth.dto.request.LoginRequest;
 import com.serviceconnect.auth.dto.request.RefreshTokenRequest;
 import com.serviceconnect.auth.dto.request.RegisterRequest;
-import com.serviceconnect.auth.dto.response.LoginResponse;
-import com.serviceconnect.auth.dto.response.RefreshTokenResponse;
-import com.serviceconnect.auth.dto.response.RegisterResponse;
-import com.serviceconnect.auth.dto.response.UserRoleResponse;
+import com.serviceconnect.auth.dto.response.*;
 import com.serviceconnect.auth.entity.User;
 import com.serviceconnect.auth.entity.VerificationChannel;
 import com.serviceconnect.auth.enums.Role;
 import com.serviceconnect.auth.exception.EmailAlreadyExistsException;
 import com.serviceconnect.auth.exception.PhoneAlreadyExistsException;
 import com.serviceconnect.auth.repository.UserRepository;
+
 import lombok.RequiredArgsConstructor;
+import com.serviceconnect.auth.client.UserServiceClient;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
+
 import java.time.OffsetDateTime;
 
 @Service
 @RequiredArgsConstructor
 public class AuthService {
 
+    private final UserServiceClient userServiceClient;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
@@ -39,47 +40,59 @@ public class AuthService {
     private final VerificationService verificationService;
 
 
-    // =========================
+    // ============================================================
     // CUSTOMER REGISTRATION
-    // =========================
+    // ============================================================
 
     @Transactional
-    public RegisterResponse register(RegisterRequest request) {
+    public RegisterResponse register(
+            RegisterRequest request) {
 
-        String email = request.email()
-                .trim()
-                .toLowerCase();
+        String email =
+                request.email()
+                        .trim()
+                        .toLowerCase();
 
-        String phone = request.phone()
-                .trim();
+        String phone =
+                request.phone()
+                        .trim();
 
         if (userRepository.existsByEmail(email)) {
+
             throw new EmailAlreadyExistsException(
                     "Email is already registered"
             );
         }
 
         if (userRepository.existsByPhone(phone)) {
+
             throw new PhoneAlreadyExistsException(
                     "Phone number is already registered"
             );
         }
 
-        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime now =
+                OffsetDateTime.now();
 
-        User user = User.builder()
-                .email(email)
-                .password(passwordEncoder.encode(request.password()))
-                .phone(phone)
-                .role(Role.CUSTOMER)
-                .enabled(false)
-                .emailVerified(false)
-                .phoneVerified(false)
-                .createdAt(now)
-                .updatedAt(now)
-                .build();
+        User user =
+                User.builder()
+                        .email(email)
+                        .password(
+                                passwordEncoder.encode(
+                                        request.password()
+                                )
+                        )
+                        .phone(phone)
+                        .role(Role.CUSTOMER)
+                        .enabled(false)
+                        .emailVerified(false)
+                        .phoneVerified(false)
+                        .createdAt(now)
+                        .updatedAt(now)
+                        .build();
 
-        User savedUser = userRepository.save(user);
+        User savedUser =
+                userRepository.save(user);
 
         // Create verification token
         String verificationToken =
@@ -87,7 +100,7 @@ public class AuthService {
                         savedUser.getId()
                 );
 
-        // Generate OTP and send it through Brevo
+        // Generate OTP and send through Brevo
         verificationService.generateVerificationCode(
                 verificationToken,
                 VerificationChannel.EMAIL
@@ -104,41 +117,43 @@ public class AuthService {
     }
 
 
-    // =========================
+    // ============================================================
     // LOGIN
-    // =========================
+    // ============================================================
 
     @Transactional
-    public LoginResponse login(LoginRequest request) {
+    public LoginResponse login(
+            LoginRequest request) {
 
-        String email = request.email()
-                .trim()
-                .toLowerCase();
+        String email =
+                request.email()
+                        .trim()
+                        .toLowerCase();
 
-        var authentication = authenticationManager.authenticate(
+        authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         email,
                         request.password()
                 )
         );
 
-        UserDetails userDetails =
-                (UserDetails) authentication.getPrincipal();
-
-        User user = userRepository.findByEmail(
-                        userDetails.getUsername()
-                )
-                .orElseThrow(() ->
-                        new IllegalStateException(
-                                "Authenticated user not found"
-                        )
-                );
+        User user =
+                userRepository.findByEmail(email)
+                        .orElseThrow(() ->
+                                new IllegalStateException(
+                                        "Authenticated user not found"
+                                )
+                        );
 
         String accessToken =
-                jwtTokenService.generateAccessToken(user);
+                jwtTokenService.generateAccessToken(
+                        user
+                );
 
         String refreshToken =
-                refreshTokenService.createRefreshToken(user);
+                refreshTokenService.createRefreshToken(
+                        user
+                );
 
         return LoginResponse.builder()
                 .id(user.getId())
@@ -152,14 +167,13 @@ public class AuthService {
     }
 
 
-    // =========================
+    // ============================================================
     // REFRESH TOKEN
-    // =========================
+    // ============================================================
 
     @Transactional
     public RefreshTokenResponse refresh(
-            RefreshTokenRequest request
-    ) {
+            RefreshTokenRequest request) {
 
         User user =
                 refreshTokenService.validateAndRevoke(
@@ -167,10 +181,14 @@ public class AuthService {
                 );
 
         String newAccessToken =
-                jwtTokenService.generateAccessToken(user);
+                jwtTokenService.generateAccessToken(
+                        user
+                );
 
         String newRefreshToken =
-                refreshTokenService.createRefreshToken(user);
+                refreshTokenService.createRefreshToken(
+                        user
+                );
 
         return RefreshTokenResponse.builder()
                 .accessToken(newAccessToken)
@@ -181,60 +199,87 @@ public class AuthService {
     }
 
 
-    // =========================
+    // ============================================================
     // LOGOUT
-    // =========================
+    // ============================================================
 
     @Transactional
-    public void logout(String refreshToken) {
+    public void logout(
+            String refreshToken) {
 
-        refreshTokenService.revoke(refreshToken);
+        refreshTokenService.revoke(
+                refreshToken
+        );
     }
 
 
-    // =========================
+    // ============================================================
+    // LOGOUT ALL SESSIONS
+    // ============================================================
+
+    @Transactional
+    public void logoutAllSessions(
+            Long userId) {
+
+        refreshTokenService.revokeAllForUser(
+                userId
+        );
+    }
+
+
+    // ============================================================
     // PROVIDER REGISTRATION
-    // =========================
+    // ============================================================
 
     @Transactional
     public RegisterResponse registerProvider(
-            RegisterRequest request
-    ) {
+            RegisterRequest request) {
 
-        String email = request.email()
-                .trim()
-                .toLowerCase();
+        String email =
+                request.email()
+                        .trim()
+                        .toLowerCase();
 
-        String phone = request.phone()
-                .trim();
+        String phone =
+                request.phone()
+                        .trim();
 
         if (userRepository.existsByEmail(email)) {
+
             throw new EmailAlreadyExistsException(
                     "Email is already registered"
             );
         }
 
         if (userRepository.existsByPhone(phone)) {
+
             throw new PhoneAlreadyExistsException(
                     "Phone number is already registered"
             );
         }
 
-        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime now =
+                OffsetDateTime.now();
 
-        User user = User.builder()
-                .email(email)
-                .password(passwordEncoder.encode(request.password()))
-                .phone(phone)
-                .role(Role.PROVIDER)
-                .enabled(false)
-                .emailVerified(false)
-                .phoneVerified(false)
-                .createdAt(now)
-                .updatedAt(now)
-                .build();
+        User user =
+                User.builder()
+                        .email(email)
+                        .password(
+                                passwordEncoder.encode(
+                                        request.password()
+                                )
+                        )
+                        .phone(phone)
+                        .role(Role.PROVIDER)
+                        .enabled(false)
+                        .emailVerified(false)
+                        .phoneVerified(false)
+                        .createdAt(now)
+                        .updatedAt(now)
+                        .build();
 
-        User savedUser = userRepository.save(user);
+        User savedUser =
+                userRepository.save(user);
 
         // Create verification token
         String verificationToken =
@@ -242,7 +287,7 @@ public class AuthService {
                         savedUser.getId()
                 );
 
-        // Generate OTP and send it through Brevo
+        // Generate OTP and send through Brevo
         verificationService.generateVerificationCode(
                 verificationToken,
                 VerificationChannel.EMAIL
@@ -258,16 +303,16 @@ public class AuthService {
                 .build();
     }
 
-    // =========================
-// CHANGE PASSWORD
-// =========================
+
+    // ============================================================
+    // CHANGE PASSWORD
+    // ============================================================
 
     @Transactional
     public void changePassword(
             Long userId,
             String currentPassword,
-            String newPassword
-    ) {
+            String newPassword) {
 
         User user =
                 userRepository.findById(userId)
@@ -304,7 +349,9 @@ public class AuthService {
 
         // Hash the new password
         user.setPassword(
-                passwordEncoder.encode(newPassword)
+                passwordEncoder.encode(
+                        newPassword
+                )
         );
 
         user.setUpdatedAt(
@@ -313,17 +360,20 @@ public class AuthService {
 
         userRepository.save(user);
 
-        // Security: invalidate all refresh tokens
-        // so the user must authenticate again.
-        refreshTokenService.revokeAllForUser(userId);
+        // Invalidate all refresh tokens
+        refreshTokenService.revokeAllForUser(
+                userId
+        );
     }
 
-    // =========================
+
+    // ============================================================
     // GET USER ROLE
-    // =========================
+    // ============================================================
 
     @Transactional(readOnly = true)
-    public UserRoleResponse getUserRole(Long userId) {
+    public UserRoleResponse getUserRole(
+            Long userId) {
 
         User user =
                 userRepository.findById(userId)
@@ -337,5 +387,92 @@ public class AuthService {
                 .id(user.getId())
                 .role(user.getRole())
                 .build();
+    }
+
+
+    // ============================================================
+    // GET SECURITY SETTINGS
+    // ============================================================
+
+    @Transactional(readOnly = true)
+    public SecuritySettingsResponse getSecuritySettings(
+            Long userId) {
+
+        User user =
+                userRepository.findById(userId)
+                        .orElseThrow(() ->
+                                new ResponseStatusException(
+                                        HttpStatus.NOT_FOUND,
+                                        "User not found"
+                                )
+                        );
+
+        return new SecuritySettingsResponse(
+                user.getId(),
+                user.getEmail(),
+                user.getPhone(),
+                user.getRole(),
+                user.isEnabled(),
+                user.isEmailVerified(),
+                user.isPhoneVerified()
+        );
+    }
+
+    // ============================================================
+    // DELETE ACCOUNT
+    // ============================================================
+
+    @Transactional
+    public void deleteAccount(
+            Long userId,
+            String password,
+            String authorizationHeader) {
+
+        User user =
+                userRepository.findById(userId)
+                        .orElseThrow(() ->
+                                new ResponseStatusException(
+                                        HttpStatus.NOT_FOUND,
+                                        "User not found"
+                                )
+                        );
+
+        // ------------------------------------------------------------
+        // VERIFY CURRENT PASSWORD
+        // ------------------------------------------------------------
+
+        if (!passwordEncoder.matches(
+                password,
+                user.getPassword()
+        )) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Password is incorrect"
+            );
+        }
+
+        // ------------------------------------------------------------
+        // DELETE USER PROFILE
+        // ------------------------------------------------------------
+
+        userServiceClient.deleteUserProfile(
+                userId,
+                authorizationHeader
+        );
+
+        // ------------------------------------------------------------
+        // REVOKE ALL REFRESH TOKENS
+        // ------------------------------------------------------------
+
+        refreshTokenService.revokeAllForUser(
+                userId
+        );
+
+        // ------------------------------------------------------------
+        // DELETE AUTH ACCOUNT
+        // ------------------------------------------------------------
+
+        userRepository.delete(user);
     }
 }

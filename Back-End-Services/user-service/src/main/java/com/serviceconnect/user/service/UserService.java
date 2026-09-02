@@ -1,13 +1,16 @@
 package com.serviceconnect.user.service;
 
+import com.serviceconnect.user.dto.request.AccountSettingsRequest;
 import com.serviceconnect.user.dto.request.UserRequest;
+import com.serviceconnect.user.dto.response.AccountSettingsResponse;
+import com.serviceconnect.user.dto.response.OnboardingStatusResponse;
 import com.serviceconnect.user.dto.response.UserResponse;
 import com.serviceconnect.user.entity.User;
 import com.serviceconnect.user.exception.UserNotFoundException;
 import com.serviceconnect.user.exception.UserProfileAlreadyExistsException;
 import com.serviceconnect.user.mapper.UserMapper;
 import com.serviceconnect.user.repository.UserRepository;
-import com.serviceconnect.user.dto.response.OnboardingStatusResponse;
+
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.security.access.AccessDeniedException;
@@ -15,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -192,9 +196,10 @@ public class UserService {
         userRepository.delete(user);
     }
 
+
     // ============================================================
-// GET ONBOARDING STATUS
-// ============================================================
+    // GET ONBOARDING STATUS
+    // ============================================================
 
     @Transactional(readOnly = true)
     public OnboardingStatusResponse getOnboardingStatus(
@@ -215,10 +220,11 @@ public class UserService {
             );
         }
 
-        User user = userOptional.get();
+        User user =
+                userOptional.get();
 
         List<String> missingFields =
-                new java.util.ArrayList<>();
+                new ArrayList<>();
 
         if (user.getFirstName() == null
                 || user.getFirstName().isBlank()) {
@@ -235,6 +241,97 @@ public class UserService {
         return new OnboardingStatusResponse(
                 missingFields.isEmpty(),
                 missingFields
+        );
+    }
+
+
+    // ============================================================
+    // GET ACCOUNT SETTINGS
+    // ============================================================
+
+    @Transactional(readOnly = true)
+    public AccountSettingsResponse getAccountSettings(
+            Long userId) {
+
+        User user =
+                userRepository.findById(userId)
+                        .orElseThrow(() ->
+                                new UserNotFoundException(
+                                        "User not found"
+                                )
+                        );
+
+        boolean onboardingCompleted =
+                user.getFirstName() != null
+                        && !user.getFirstName().isBlank()
+                        && user.getLastName() != null
+                        && !user.getLastName().isBlank();
+
+        return new AccountSettingsResponse(
+                user.getId(),
+                user.getFirstName(),
+                user.getLastName(),
+                user.getPhone(),
+                onboardingCompleted
+        );
+    }
+
+
+    // ============================================================
+    // UPDATE ACCOUNT SETTINGS
+    // ============================================================
+
+    public AccountSettingsResponse updateAccountSettings(
+            Long userId,
+            AccountSettingsRequest request) {
+
+        User user =
+                userRepository.findById(userId)
+                        .orElseThrow(() ->
+                                new UserNotFoundException(
+                                        "User not found"
+                                )
+                        );
+
+        user.setFirstName(
+                request.firstName().trim()
+        );
+
+        user.setLastName(
+                request.lastName().trim()
+        );
+
+        if (request.phone() != null) {
+
+            String phone =
+                    request.phone().trim();
+
+            user.setPhone(
+                    phone.isBlank()
+                            ? null
+                            : phone
+            );
+
+        } else {
+
+            user.setPhone(null);
+        }
+
+        User updatedUser =
+                userRepository.save(user);
+
+        boolean onboardingCompleted =
+                updatedUser.getFirstName() != null
+                        && !updatedUser.getFirstName().isBlank()
+                        && updatedUser.getLastName() != null
+                        && !updatedUser.getLastName().isBlank();
+
+        return new AccountSettingsResponse(
+                updatedUser.getId(),
+                updatedUser.getFirstName(),
+                updatedUser.getLastName(),
+                updatedUser.getPhone(),
+                onboardingCompleted
         );
     }
 }

@@ -1,6 +1,7 @@
 package com.serviceconnect.provider.service;
 
 import com.serviceconnect.provider.dto.request.CreateProviderRequest;
+import com.serviceconnect.provider.dto.response.ProviderOnboardingStatusResponse;
 import com.serviceconnect.provider.dto.response.ProviderPhotoResponse;
 import com.serviceconnect.provider.dto.response.ProviderResponse;
 import com.serviceconnect.provider.entity.Provider;
@@ -597,5 +598,47 @@ public class ProviderService {
 
                 photo.getCreatedAt()
         );
+    }
+
+    // ============================================================
+    // PROVIDER - GET ONBOARDING STATUS
+    // ============================================================
+
+    @Transactional(readOnly = true)
+    public ProviderOnboardingStatusResponse getOnboardingStatus(
+            Long userId) {
+
+        return providerRepository
+                .findByUserId(userId)
+                .map(provider -> {
+
+                    String status =
+                            provider.getStatus()
+                                    .trim()
+                                    .toUpperCase();
+
+                    boolean completed =
+                            !provider.getBusinessName().isBlank()
+                                    && !provider.getPhone().isBlank()
+                                    && !provider.getEmail().isBlank();
+
+                    boolean canServeCustomers =
+                            "APPROVED".equals(status);
+
+                    return new ProviderOnboardingStatusResponse(
+                            true,
+                            completed,
+                            status,
+                            canServeCustomers
+                    );
+                })
+                .orElseGet(() ->
+                        new ProviderOnboardingStatusResponse(
+                                false,
+                                false,
+                                "NOT_STARTED",
+                                false
+                        )
+                );
     }
 }

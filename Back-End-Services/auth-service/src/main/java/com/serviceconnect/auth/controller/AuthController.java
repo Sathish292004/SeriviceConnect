@@ -7,6 +7,7 @@ import com.serviceconnect.auth.service.AuthService;
 import com.serviceconnect.auth.service.PasswordResetService;
 import com.serviceconnect.auth.service.VerificationService;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 import java.util.Map;
@@ -21,6 +22,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -325,6 +327,92 @@ public class AuthController {
                 userId,
                 request.currentPassword(),
                 request.newPassword()
+        );
+
+        return ResponseEntity
+                .noContent()
+                .build();
+    }
+
+    // ============================================================
+    // GET MY SECURITY SETTINGS
+    // ============================================================
+
+    @GetMapping("/me/security")
+    public ResponseEntity<SecuritySettingsResponse> getMySecuritySettings(
+            @AuthenticationPrincipal Jwt jwt
+    ) {
+
+        Long userId =
+                Long.valueOf(
+                        jwt.getSubject()
+                );
+
+        SecuritySettingsResponse response =
+                authService.getSecuritySettings(
+                        userId
+                );
+
+        return ResponseEntity.ok(response);
+    }
+
+    // ============================================================
+    // LOGOUT ALL SESSIONS
+    // ============================================================
+
+    @PostMapping("/logout-all")
+    public ResponseEntity<Void> logoutAllSessions(
+            @AuthenticationPrincipal Jwt jwt
+    ) {
+
+        Long userId =
+                Long.valueOf(
+                        jwt.getSubject()
+                );
+
+        authService.logoutAllSessions(
+                userId
+        );
+
+        return ResponseEntity
+                .noContent()
+                .build();
+    }
+
+    // ============================================================
+    // DELETE MY ACCOUNT
+    // ============================================================
+
+    @DeleteMapping("/me")
+    public ResponseEntity<Void> deleteMyAccount(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody DeleteAccountRequest request,
+            HttpServletRequest httpServletRequest
+    ) {
+
+        Long userId =
+                Long.valueOf(
+                        jwt.getSubject()
+                );
+
+        String authorizationHeader =
+                httpServletRequest.getHeader(
+                        "Authorization"
+                );
+
+        if (authorizationHeader == null
+                || authorizationHeader.isBlank()) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Authorization header is required"
+            );
+        }
+
+        authService.deleteAccount(
+                userId,
+                request.password(),
+                authorizationHeader
         );
 
         return ResponseEntity

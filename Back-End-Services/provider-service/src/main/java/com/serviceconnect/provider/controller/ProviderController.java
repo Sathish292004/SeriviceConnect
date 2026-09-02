@@ -3,6 +3,7 @@ package com.serviceconnect.provider.controller;
 import com.serviceconnect.provider.dto.request.CreateProviderRequest;
 import com.serviceconnect.provider.dto.request.UpdateProviderLocationRequest;
 import com.serviceconnect.provider.dto.request.UpdateProviderStatusRequest;
+import com.serviceconnect.provider.dto.response.ProviderOnboardingStatusResponse;
 import com.serviceconnect.provider.dto.response.ProviderResponse;
 import com.serviceconnect.provider.service.ProviderService;
 
@@ -371,5 +372,25 @@ public class ProviderController {
         return role
                 .trim()
                 .toUpperCase();
+    }
+
+    // ============================================================
+    // PROVIDER - GET ONBOARDING STATUS
+    // ============================================================
+
+    @GetMapping("/me/onboarding")
+    @PreAuthorize("hasRole('PROVIDER')")
+    public ResponseEntity<ProviderOnboardingStatusResponse>
+    getMyOnboardingStatus(
+            @AuthenticationPrincipal Jwt jwt) {
+
+        Long userId =
+                getUserId(jwt);
+
+        return ResponseEntity.ok(
+                providerService.getOnboardingStatus(
+                        userId
+                )
+        );
     }
 }

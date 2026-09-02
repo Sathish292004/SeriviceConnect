@@ -6,7 +6,7 @@ import com.serviceconnect.user.dto.response.OnboardingStatusResponse;
 import com.serviceconnect.user.dto.response.UserResponse;
 import com.serviceconnect.user.dto.response.ValidationErrorResponse;
 import com.serviceconnect.user.service.UserService;
-
+import com.serviceconnect.user.dto.response.AccountSettingsResponse;
 import io.jsonwebtoken.Claims;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -23,7 +23,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-
+import com.serviceconnect.user.dto.request.AccountSettingsRequest;
+import com.serviceconnect.user.dto.response.AccountSettingsResponse;
 import java.util.List;
 
 @RestController
@@ -382,6 +383,94 @@ public class UserController {
 
         throw new IllegalStateException(
                 "User ID not found in authentication"
+        );
+    }
+
+    // =========================
+    // GET MY ACCOUNT SETTINGS
+    // =========================
+
+    @Operation(
+            summary = "Get my account settings",
+            description = "Returns the profile settings of the currently authenticated user"
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Account settings retrieved successfully"
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Authentication required"
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "User profile not found",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            )
+    })
+    @GetMapping("/me/settings")
+    public AccountSettingsResponse getMyAccountSettings(
+            Authentication authentication) {
+
+        Long userId = getUserId(authentication);
+
+        return userService.getAccountSettings(userId);
+    }
+
+    // =========================
+    // UPDATE MY ACCOUNT SETTINGS
+    // =========================
+
+    @Operation(
+            summary = "Update my account settings",
+            description = "Updates the profile settings of the currently authenticated user"
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Account settings updated successfully"
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Validation failed",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    implementation = ValidationErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Authentication required"
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "User profile not found",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            )
+    })
+    @PutMapping("/me/settings")
+    public AccountSettingsResponse updateMyAccountSettings(
+            @Valid @RequestBody AccountSettingsRequest request,
+            Authentication authentication) {
+
+        Long userId = getUserId(authentication);
+
+        return userService.updateAccountSettings(
+                userId,
+                request
         );
     }
 }
