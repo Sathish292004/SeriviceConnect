@@ -31,6 +31,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtTokenService jwtTokenService;
     private final RefreshTokenService refreshTokenService;
+    private final VerificationTokenService verificationTokenService;
 
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
@@ -61,12 +62,19 @@ public class AuthService {
                 .password(passwordEncoder.encode(request.password()))
                 .phone(phone)
                 .role(Role.CUSTOMER)
-                .enabled(true)
+                .enabled(false)
+                .emailVerified(false)
+                .phoneVerified(false)
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
 
         User savedUser = userRepository.save(user);
+
+        String verificationToken =
+                verificationTokenService.createToken(
+                        savedUser.getId()
+                );
 
         return RegisterResponse.builder()
                 .id(savedUser.getId())
@@ -74,6 +82,7 @@ public class AuthService {
                 .phone(savedUser.getPhone())
                 .role(savedUser.getRole())
                 .enabled(savedUser.isEnabled())
+                .verificationToken(verificationToken)
                 .build();
     }
 
@@ -179,12 +188,19 @@ public class AuthService {
                 .password(passwordEncoder.encode(request.password()))
                 .phone(phone)
                 .role(Role.PROVIDER)
-                .enabled(true)
+                .enabled(false)
+                .emailVerified(false)
+                .phoneVerified(false)
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
 
         User savedUser = userRepository.save(user);
+
+        String verificationToken =
+                verificationTokenService.createToken(
+                        savedUser.getId()
+                );
 
         return RegisterResponse.builder()
                 .id(savedUser.getId())
@@ -192,6 +208,7 @@ public class AuthService {
                 .phone(savedUser.getPhone())
                 .role(savedUser.getRole())
                 .enabled(savedUser.isEnabled())
+                .verificationToken(verificationToken)
                 .build();
     }
 

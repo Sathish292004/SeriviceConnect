@@ -23,14 +23,23 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          secret: ${JWT_SECRET}
+services:
+  provider:
+    url: http://localhost:8084
 
 management:
   endpoints:
     web:
       exposure:
         include: health,info
+
+jwt:
+  secret: ${JWT_SECRET}
+  issuer: serviceconnect-auth
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    register-with-eureka: true
+    fetch-registry: true

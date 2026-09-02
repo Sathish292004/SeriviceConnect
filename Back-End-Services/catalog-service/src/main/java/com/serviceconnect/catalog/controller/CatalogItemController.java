@@ -1,5 +1,6 @@
 package com.serviceconnect.catalog.controller;
 
+import com.serviceconnect.catalog.client.ProviderServiceClient;
 import com.serviceconnect.catalog.dto.request.CatalogItemRequest;
 import com.serviceconnect.catalog.dto.response.CatalogItemResponse;
 import com.serviceconnect.catalog.service.CatalogItemService;
@@ -8,6 +9,7 @@ import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
@@ -26,6 +28,8 @@ public class CatalogItemController {
 
     private final CatalogItemService catalogItemService;
 
+    private final ProviderServiceClient providerServiceClient;
+
 
     // ============================================================
     // CREATE CATALOG ITEM
@@ -37,20 +41,52 @@ public class CatalogItemController {
 
             Authentication authentication,
 
+            @RequestHeader(HttpHeaders.AUTHORIZATION)
+            String authorizationHeader,
+
             @Valid
             @RequestBody
             CatalogItemRequest request) {
 
-        Long providerId =
+        // --------------------------------------------------------
+        // 1. Get authenticated user's ID from JWT
+        // --------------------------------------------------------
+
+        Long userId =
                 Long.valueOf(
                         authentication.getName()
                 );
+
+
+        // --------------------------------------------------------
+        // 2. Get Provider using user ID
+        // --------------------------------------------------------
+
+        ProviderServiceClient.ProviderResponse provider =
+                providerServiceClient.getProviderByUserId(
+                        userId,
+                        authorizationHeader
+                );
+
+
+        // --------------------------------------------------------
+        // 3. Get actual Provider entity ID
+        // --------------------------------------------------------
+
+        Long providerId =
+                provider.id();
+
+
+        // --------------------------------------------------------
+        // 4. Create catalog item using Provider ID
+        // --------------------------------------------------------
 
         CatalogItemResponse response =
                 catalogItemService.create(
                         providerId,
                         request
                 );
+
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)

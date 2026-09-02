@@ -1,9 +1,14 @@
 package com.serviceconnect.auth.controller;
 
 import com.serviceconnect.auth.dto.request.LoginRequest;
+import com.serviceconnect.auth.dto.request.LogoutRequest;
+import com.serviceconnect.auth.dto.request.RefreshTokenRequest;
 import com.serviceconnect.auth.dto.request.RegisterRequest;
+import com.serviceconnect.auth.dto.request.VerificationRequest;
 import com.serviceconnect.auth.dto.response.*;
+import com.serviceconnect.auth.entity.VerificationChannel;
 import com.serviceconnect.auth.service.AuthService;
+import com.serviceconnect.auth.service.VerificationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -12,8 +17,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
-import com.serviceconnect.auth.dto.request.RefreshTokenRequest;
-import com.serviceconnect.auth.dto.request.LogoutRequest;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -21,6 +24,7 @@ import com.serviceconnect.auth.dto.request.LogoutRequest;
 public class AuthController {
 
     private final AuthService authService;
+    private final VerificationService verificationService;
 
     @PostMapping("/register")
     public ResponseEntity<RegisterResponse> register(
@@ -51,9 +55,15 @@ public class AuthController {
             @AuthenticationPrincipal Jwt jwt
     ) {
 
-        Long id = Long.valueOf(
-                jwt.getSubject()
-        );
+        String subject = jwt.getSubject();
+
+        if (subject == null || subject.isBlank()) {
+            throw new IllegalStateException(
+                    "JWT subject is missing"
+            );
+        }
+
+        Long id = Long.valueOf(subject);
 
         String email = jwt.getClaimAsString("email");
 
@@ -96,11 +106,66 @@ public class AuthController {
 
     @PostMapping("/register/provider")
     public ResponseEntity<RegisterResponse> registerProvider(
-            @Valid @RequestBody RegisterRequest request) {
+            @Valid @RequestBody RegisterRequest request
+    ) {
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(authService.registerProvider(request));
+    }
+
+    @PostMapping("/verification/email/request")
+    public ResponseEntity<Void> requestEmailVerification(
+            @Valid @RequestBody VerificationRequest request
+    ) {
+
+        verificationService.generateVerificationCode(
+                request.verificationToken(),
+                VerificationChannel.EMAIL
+        );
+
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/verification/email/verify")
+    public ResponseEntity<Void> verifyEmail(
+            @Valid @RequestBody VerificationRequest request
+    ) {
+
+        verificationService.verifyCode(
+                request.verificationToken(),
+                VerificationChannel.EMAIL,
+                request.code()
+        );
+
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/verification/phone/request")
+    public ResponseEntity<Void> requestPhoneVerification(
+            @Valid @RequestBody VerificationRequest request
+    ) {
+
+        verificationService.generateVerificationCode(
+                request.verificationToken(),
+                VerificationChannel.PHONE
+        );
+
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/verification/phone/verify")
+    public ResponseEntity<Void> verifyPhone(
+            @Valid @RequestBody VerificationRequest request
+    ) {
+
+        verificationService.verifyCode(
+                request.verificationToken(),
+                VerificationChannel.PHONE,
+                request.code()
+        );
+
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/internal/users/{userId}/role")

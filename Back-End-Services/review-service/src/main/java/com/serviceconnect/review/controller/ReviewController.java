@@ -12,6 +12,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 
@@ -30,8 +31,10 @@ public class ReviewController {
 
     // ============================================================
     // CREATE REVIEW
+    // CUSTOMER ONLY
     // ============================================================
 
+    @PreAuthorize("hasRole('CUSTOMER')")
     @PostMapping
     public ResponseEntity<ReviewResponse> create(
 
@@ -64,6 +67,7 @@ public class ReviewController {
 
     // ============================================================
     // GET REVIEW BY ID
+    // AUTHENTICATED USERS
     // ============================================================
 
     @GetMapping("/{id}")
@@ -80,6 +84,7 @@ public class ReviewController {
 
     // ============================================================
     // GET REVIEW BY BOOKING
+    // AUTHENTICATED USERS
     // ============================================================
 
     @GetMapping("/booking/{bookingId}")
@@ -96,6 +101,7 @@ public class ReviewController {
 
     // ============================================================
     // GET PROVIDER REVIEWS
+    // AUTHENTICATED USERS
     // ============================================================
 
     @GetMapping("/provider/{providerId}")
@@ -114,6 +120,7 @@ public class ReviewController {
 
     // ============================================================
     // GET CUSTOMER REVIEWS
+    // AUTHENTICATED USERS
     // ============================================================
 
     @GetMapping("/customer/{customerId}")
@@ -132,6 +139,7 @@ public class ReviewController {
 
     // ============================================================
     // GET ALL ACTIVE REVIEWS
+    // AUTHENTICATED USERS
     // ============================================================
 
     @GetMapping
@@ -145,8 +153,10 @@ public class ReviewController {
 
     // ============================================================
     // UPDATE REVIEW
+    // CUSTOMER ONLY
     // ============================================================
 
+    @PreAuthorize("hasRole('CUSTOMER')")
     @PutMapping("/{id}")
     public ResponseEntity<ReviewResponse> update(
 
@@ -177,8 +187,10 @@ public class ReviewController {
 
     // ============================================================
     // DEACTIVATE REVIEW
+    // CUSTOMER ONLY
     // ============================================================
 
+    @PreAuthorize("hasRole('CUSTOMER')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deactivate(
 
@@ -202,6 +214,5 @@ public class ReviewController {
                 .noContent()
                 .build();
     }
-
 
 }

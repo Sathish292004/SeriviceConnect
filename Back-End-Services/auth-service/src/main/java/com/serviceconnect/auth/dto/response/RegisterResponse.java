@@ -1,16 +1,24 @@
 package com.serviceconnect.auth.dto.response;
 
 import com.serviceconnect.auth.enums.Role;
-import lombok.Builder;
+import lombok.*;
 
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 @Builder
-public record RegisterResponse(
+public class RegisterResponse {
 
-        Long id,
-        String email,
-        String phone,
-        Role role,
-        boolean enabled
+    private Long id;
 
-) {
+    private String email;
+
+    private String phone;
+
+    private Role role;
+
+    private boolean enabled;
+
+    private String verificationToken;
 }

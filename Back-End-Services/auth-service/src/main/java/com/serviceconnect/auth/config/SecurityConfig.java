@@ -215,11 +215,14 @@ public class SecurityConfig {
                         // Public authentication endpoints
                         .requestMatchers(
                                 "/api/v1/auth/register",
-                                "/api/v1/auth/register/provider",
                                 "/api/v1/auth/login",
-                                "/api/v1/auth/refresh"
-                        )
-                        .permitAll()
+                                "/api/v1/auth/refresh",
+                                "/api/v1/auth/register/provider",
+                                "/api/v1/auth/verification/email/request",
+                                "/api/v1/auth/verification/email/verify",
+                                "/api/v1/auth/verification/phone/request",
+                                "/api/v1/auth/verification/phone/verify"
+                        ).permitAll()
 
 
                         // Authenticated authentication endpoints

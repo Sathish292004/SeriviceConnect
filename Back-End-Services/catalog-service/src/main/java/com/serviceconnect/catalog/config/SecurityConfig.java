@@ -7,7 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.convert.converter.Converter;
-
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -22,6 +22,8 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtGra
 
 import org.springframework.security.web.SecurityFilterChain;
 
+import java.util.Base64;
+
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
@@ -33,6 +35,9 @@ public class SecurityConfig {
     @Value("${JWT_SECRET}")
     private String jwtSecret;
 
+    @Value("${jwt.issuer}")
+    private String jwtIssuer;
+
 
     // ============================================================
     // JWT DECODER
@@ -41,14 +46,22 @@ public class SecurityConfig {
     @Bean
     public JwtDecoder jwtDecoder() {
 
+        byte[] keyBytes = Base64.getDecoder().decode(jwtSecret);
+
         SecretKey secretKey = new SecretKeySpec(
-                jwtSecret.getBytes(),
+                keyBytes,
                 "HmacSHA256"
         );
 
-        return NimbusJwtDecoder
+        NimbusJwtDecoder decoder = NimbusJwtDecoder
                 .withSecretKey(secretKey)
                 .build();
+
+        decoder.setJwtValidator(
+                JwtValidators.createDefaultWithIssuer(jwtIssuer)
+        );
+
+        return decoder;
     }
 
 

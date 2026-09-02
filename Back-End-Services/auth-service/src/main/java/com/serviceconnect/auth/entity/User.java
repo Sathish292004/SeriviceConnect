@@ -35,6 +35,12 @@ public class User {
     @Column(nullable = false)
     private boolean enabled;
 
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified;
+
+    @Column(name = "phone_verified", nullable = false)
+    private boolean phoneVerified;
+
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 

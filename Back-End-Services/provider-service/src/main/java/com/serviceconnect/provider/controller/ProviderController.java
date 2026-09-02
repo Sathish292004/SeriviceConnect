@@ -97,12 +97,34 @@ public class ProviderController {
 
             @PathVariable
             @Positive
-            Long providerId) {
+            Long providerId,
 
+            @AuthenticationPrincipal
+            Jwt jwt) {
+
+        Long authenticatedUserId = getUserId(jwt);
+
+        String role = getRole(jwt);
+
+        // PROVIDER can only view their own profile
+        if ("PROVIDER".equals(role)) {
+
+            ProviderResponse provider =
+                    providerService.getProviderById(providerId);
+
+            if (!authenticatedUserId.equals(provider.userId())) {
+
+                throw new org.springframework.security.access.AccessDeniedException(
+                        "You can only view your own provider profile"
+                );
+            }
+
+            return ResponseEntity.ok(provider);
+        }
+
+        // ADMIN can view any provider
         return ResponseEntity.ok(
-                providerService.getProviderById(
-                        providerId
-                )
+                providerService.getProviderById(providerId)
         );
     }
 
