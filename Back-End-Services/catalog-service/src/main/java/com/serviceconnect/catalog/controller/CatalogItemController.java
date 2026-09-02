@@ -6,6 +6,7 @@ import com.serviceconnect.catalog.dto.response.CatalogItemResponse;
 import com.serviceconnect.catalog.service.CatalogItemService;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 
 import lombok.RequiredArgsConstructor;
 
@@ -32,7 +33,7 @@ public class CatalogItemController {
 
 
     // ============================================================
-    // CREATE CATALOG ITEM
+    // PROVIDER - CREATE CATALOG ITEM
     // ============================================================
 
     @PostMapping
@@ -48,45 +49,17 @@ public class CatalogItemController {
             @RequestBody
             CatalogItemRequest request) {
 
-        // --------------------------------------------------------
-        // 1. Get authenticated user's ID from JWT
-        // --------------------------------------------------------
-
-        Long userId =
-                Long.valueOf(
-                        authentication.getName()
-                );
-
-
-        // --------------------------------------------------------
-        // 2. Get Provider using user ID
-        // --------------------------------------------------------
-
-        ProviderServiceClient.ProviderResponse provider =
-                providerServiceClient.getProviderByUserId(
-                        userId,
+        Long providerId =
+                resolveProviderId(
+                        authentication,
                         authorizationHeader
                 );
-
-
-        // --------------------------------------------------------
-        // 3. Get actual Provider entity ID
-        // --------------------------------------------------------
-
-        Long providerId =
-                provider.id();
-
-
-        // --------------------------------------------------------
-        // 4. Create catalog item using Provider ID
-        // --------------------------------------------------------
 
         CatalogItemResponse response =
                 catalogItemService.create(
                         providerId,
                         request
                 );
-
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -95,13 +68,14 @@ public class CatalogItemController {
 
 
     // ============================================================
-    // GET CATALOG ITEM BY ID
+    // GET ACTIVE CATALOG ITEM BY ID
     // ============================================================
 
     @GetMapping("/{id}")
     public ResponseEntity<CatalogItemResponse> getById(
 
             @PathVariable
+            @Positive
             Long id) {
 
         return ResponseEntity.ok(
@@ -124,24 +98,26 @@ public class CatalogItemController {
 
 
     // ============================================================
-    // GET PROVIDER CATALOG ITEMS
+    // GET ACTIVE CATALOG ITEMS BY PROVIDER
     // ============================================================
 
     @GetMapping("/provider/{providerId}")
     public ResponseEntity<List<CatalogItemResponse>> getByProvider(
 
             @PathVariable
+            @Positive
             Long providerId) {
 
         return ResponseEntity.ok(
-                catalogItemService
-                        .getByProvider(providerId)
+                catalogItemService.getByProvider(
+                        providerId
+                )
         );
     }
 
 
     // ============================================================
-    // GET CATALOG ITEMS BY CATEGORY
+    // GET ACTIVE CATALOG ITEMS BY CATEGORY
     // ============================================================
 
     @GetMapping("/category/{category}")
@@ -151,14 +127,15 @@ public class CatalogItemController {
             String category) {
 
         return ResponseEntity.ok(
-                catalogItemService
-                        .getByCategory(category)
+                catalogItemService.getByCategory(
+                        category
+                )
         );
     }
 
 
     // ============================================================
-    // UPDATE CATALOG ITEM
+    // PROVIDER - UPDATE OWN CATALOG ITEM
     // ============================================================
 
     @PutMapping("/{id}")
@@ -167,7 +144,11 @@ public class CatalogItemController {
 
             Authentication authentication,
 
+            @RequestHeader(HttpHeaders.AUTHORIZATION)
+            String authorizationHeader,
+
             @PathVariable
+            @Positive
             Long id,
 
             @Valid
@@ -175,8 +156,9 @@ public class CatalogItemController {
             CatalogItemRequest request) {
 
         Long providerId =
-                Long.valueOf(
-                        authentication.getName()
+                resolveProviderId(
+                        authentication,
+                        authorizationHeader
                 );
 
         return ResponseEntity.ok(
@@ -190,7 +172,7 @@ public class CatalogItemController {
 
 
     // ============================================================
-    // DEACTIVATE CATALOG ITEM
+    // PROVIDER - DEACTIVATE OWN CATALOG ITEM
     // ============================================================
 
     @DeleteMapping("/{id}")
@@ -199,12 +181,17 @@ public class CatalogItemController {
 
             Authentication authentication,
 
+            @RequestHeader(HttpHeaders.AUTHORIZATION)
+            String authorizationHeader,
+
             @PathVariable
+            @Positive
             Long id) {
 
         Long providerId =
-                Long.valueOf(
-                        authentication.getName()
+                resolveProviderId(
+                        authentication,
+                        authorizationHeader
                 );
 
         catalogItemService.deactivate(
@@ -215,5 +202,29 @@ public class CatalogItemController {
         return ResponseEntity
                 .noContent()
                 .build();
+    }
+
+
+    // ============================================================
+    // RESOLVE AUTHENTICATED USER → PROVIDER ID
+    // ============================================================
+
+    private Long resolveProviderId(
+
+            Authentication authentication,
+            String authorizationHeader) {
+
+        Long userId =
+                Long.valueOf(
+                        authentication.getName()
+                );
+
+        ProviderServiceClient.ProviderResponse provider =
+                providerServiceClient.getProviderByUserId(
+                        userId,
+                        authorizationHeader
+                );
+
+        return provider.id();
     }
 }

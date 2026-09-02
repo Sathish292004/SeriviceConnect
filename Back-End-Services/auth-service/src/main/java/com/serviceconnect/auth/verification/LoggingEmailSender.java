@@ -6,7 +6,7 @@ import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
-@Profile("dev")
+@Profile("local-logging")
 public class LoggingEmailSender implements EmailSender {
 
     @Override

@@ -8,6 +8,7 @@ import com.serviceconnect.auth.dto.response.RefreshTokenResponse;
 import com.serviceconnect.auth.dto.response.RegisterResponse;
 import com.serviceconnect.auth.dto.response.UserRoleResponse;
 import com.serviceconnect.auth.entity.User;
+import com.serviceconnect.auth.entity.VerificationChannel;
 import com.serviceconnect.auth.enums.Role;
 import com.serviceconnect.auth.exception.EmailAlreadyExistsException;
 import com.serviceconnect.auth.exception.PhoneAlreadyExistsException;
@@ -19,7 +20,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import java.time.OffsetDateTime;
 
 @Service
@@ -32,6 +34,14 @@ public class AuthService {
     private final JwtTokenService jwtTokenService;
     private final RefreshTokenService refreshTokenService;
     private final VerificationTokenService verificationTokenService;
+
+    // Email and phone verification
+    private final VerificationService verificationService;
+
+
+    // =========================
+    // CUSTOMER REGISTRATION
+    // =========================
 
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
@@ -71,10 +81,17 @@ public class AuthService {
 
         User savedUser = userRepository.save(user);
 
+        // Create verification token
         String verificationToken =
                 verificationTokenService.createToken(
                         savedUser.getId()
                 );
+
+        // Generate OTP and send it through Brevo
+        verificationService.generateVerificationCode(
+                verificationToken,
+                VerificationChannel.EMAIL
+        );
 
         return RegisterResponse.builder()
                 .id(savedUser.getId())
@@ -85,6 +102,11 @@ public class AuthService {
                 .verificationToken(verificationToken)
                 .build();
     }
+
+
+    // =========================
+    // LOGIN
+    // =========================
 
     @Transactional
     public LoginResponse login(LoginRequest request) {
@@ -129,6 +151,11 @@ public class AuthService {
                 .build();
     }
 
+
+    // =========================
+    // REFRESH TOKEN
+    // =========================
+
     @Transactional
     public RefreshTokenResponse refresh(
             RefreshTokenRequest request
@@ -153,14 +180,26 @@ public class AuthService {
                 .build();
     }
 
+
+    // =========================
+    // LOGOUT
+    // =========================
+
     @Transactional
     public void logout(String refreshToken) {
 
         refreshTokenService.revoke(refreshToken);
     }
 
+
+    // =========================
+    // PROVIDER REGISTRATION
+    // =========================
+
     @Transactional
-    public RegisterResponse registerProvider(RegisterRequest request) {
+    public RegisterResponse registerProvider(
+            RegisterRequest request
+    ) {
 
         String email = request.email()
                 .trim()
@@ -197,10 +236,17 @@ public class AuthService {
 
         User savedUser = userRepository.save(user);
 
+        // Create verification token
         String verificationToken =
                 verificationTokenService.createToken(
                         savedUser.getId()
                 );
+
+        // Generate OTP and send it through Brevo
+        verificationService.generateVerificationCode(
+                verificationToken,
+                VerificationChannel.EMAIL
+        );
 
         return RegisterResponse.builder()
                 .id(savedUser.getId())
@@ -211,6 +257,70 @@ public class AuthService {
                 .verificationToken(verificationToken)
                 .build();
     }
+
+    // =========================
+// CHANGE PASSWORD
+// =========================
+
+    @Transactional
+    public void changePassword(
+            Long userId,
+            String currentPassword,
+            String newPassword
+    ) {
+
+        User user =
+                userRepository.findById(userId)
+                        .orElseThrow(() ->
+                                new ResponseStatusException(
+                                        HttpStatus.NOT_FOUND,
+                                        "User not found"
+                                )
+                        );
+
+        // Verify current password
+        if (!passwordEncoder.matches(
+                currentPassword,
+                user.getPassword()
+        )) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Current password is incorrect"
+            );
+        }
+
+        // Prevent using the same password again
+        if (passwordEncoder.matches(
+                newPassword,
+                user.getPassword()
+        )) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "New password must be different from current password"
+            );
+        }
+
+        // Hash the new password
+        user.setPassword(
+                passwordEncoder.encode(newPassword)
+        );
+
+        user.setUpdatedAt(
+                OffsetDateTime.now()
+        );
+
+        userRepository.save(user);
+
+        // Security: invalidate all refresh tokens
+        // so the user must authenticate again.
+        refreshTokenService.revokeAllForUser(userId);
+    }
+
+    // =========================
+    // GET USER ROLE
+    // =========================
 
     @Transactional(readOnly = true)
     public UserRoleResponse getUserRole(Long userId) {

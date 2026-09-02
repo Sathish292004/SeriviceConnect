@@ -218,6 +218,10 @@ public class SecurityConfig {
                                 "/api/v1/auth/login",
                                 "/api/v1/auth/refresh",
                                 "/api/v1/auth/register/provider",
+
+                                "/api/v1/auth/password/forgot",
+                                "/api/v1/auth/password/reset",
+
                                 "/api/v1/auth/verification/email/request",
                                 "/api/v1/auth/verification/email/verify",
                                 "/api/v1/auth/verification/phone/request",

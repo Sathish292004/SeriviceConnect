@@ -2,6 +2,7 @@ package com.serviceconnect.user.controller;
 
 import com.serviceconnect.user.dto.request.UserRequest;
 import com.serviceconnect.user.dto.response.ErrorResponse;
+import com.serviceconnect.user.dto.response.OnboardingStatusResponse;
 import com.serviceconnect.user.dto.response.UserResponse;
 import com.serviceconnect.user.dto.response.ValidationErrorResponse;
 import com.serviceconnect.user.service.UserService;
@@ -37,9 +38,9 @@ public class UserController {
     private final UserService userService;
 
 
-    // =========================
+    // ============================================================
     // CREATE USER PROFILE
-    // =========================
+    // ============================================================
 
     @Operation(
             summary = "Create user profile",
@@ -79,13 +80,16 @@ public class UserController {
 
         Long userId = getUserId(authentication);
 
-        return userService.createUser(userId, request);
+        return userService.createUser(
+                userId,
+                request
+        );
     }
 
 
-    // =========================
+    // ============================================================
     // GET ALL USERS
-    // =========================
+    // ============================================================
 
     @Operation(
             summary = "Get all user profiles",
@@ -102,9 +106,115 @@ public class UserController {
     }
 
 
-    // =========================
+    // ============================================================
+    // GET MY PROFILE
+    // ============================================================
+
+    @Operation(
+            summary = "Get my profile",
+            description = "Returns the profile of the currently authenticated user"
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Profile retrieved successfully"
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "User profile not found",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            )
+    })
+    @GetMapping("/me")
+    public UserResponse getMyProfile(
+            Authentication authentication) {
+
+        Long userId = getUserId(authentication);
+
+        return userService.getById(userId);
+    }
+
+    // ============================================================
+    // GET MY ONBOARDING STATUS
+    // ============================================================
+
+    @Operation(
+            summary = "Get my onboarding status",
+            description = "Returns whether the currently authenticated user has completed onboarding"
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Onboarding status retrieved successfully"
+            )
+    })
+    @GetMapping("/me/onboarding")
+    public OnboardingStatusResponse getMyOnboardingStatus(
+            Authentication authentication) {
+
+        Long userId = getUserId(authentication);
+
+        return userService.getOnboardingStatus(userId);
+    }
+
+
+    // ============================================================
+    // UPDATE MY PROFILE
+    // ============================================================
+
+    @Operation(
+            summary = "Update my profile",
+            description = "Updates the profile of the currently authenticated user"
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Profile updated successfully"
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Validation failed",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    implementation = ValidationErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "User profile not found",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            )
+    })
+    @PutMapping("/me")
+    public UserResponse updateMyProfile(
+            @Valid @RequestBody UserRequest request,
+            Authentication authentication) {
+
+        Long userId = getUserId(authentication);
+
+        return userService.updateUser(
+                userId,
+                userId,
+                request
+        );
+    }
+
+
+    // ============================================================
     // GET USER BY ID
-    // =========================
+    // ============================================================
 
     @Operation(
             summary = "Get user profile by ID",
@@ -138,9 +248,9 @@ public class UserController {
     }
 
 
-    // =========================
-    // UPDATE USER PROFILE
-    // =========================
+    // ============================================================
+    // UPDATE USER PROFILE BY ID
+    // ============================================================
 
     @Operation(
             summary = "Update user profile",
@@ -172,7 +282,6 @@ public class UserController {
                     )
             )
     })
-
     @PutMapping("/{id}")
     public UserResponse updateUser(
             @Parameter(
@@ -195,9 +304,9 @@ public class UserController {
     }
 
 
-    // =========================
+    // ============================================================
     // DELETE USER PROFILE
-    // =========================
+    // ============================================================
 
     @Operation(
             summary = "Delete user profile",
@@ -219,7 +328,6 @@ public class UserController {
                     )
             )
     })
-
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteUser(
@@ -239,11 +347,32 @@ public class UserController {
         );
     }
 
-    // =========================
-    // JWT USER ID
-    // =========================
 
-    private Long getUserId(Authentication authentication) {
+    // ============================================================
+    // GET CUSTOMER PHONE
+    // INTERNAL SERVICE USE
+    // ============================================================
+
+    @GetMapping("/{id}/phone")
+    public String getCustomerPhone(
+            @PathVariable Long id) {
+
+        return userService.getCustomerPhone(id);
+    }
+
+
+    // ============================================================
+    // JWT USER ID
+    // ============================================================
+
+    private Long getUserId(
+            Authentication authentication) {
+
+        if (authentication == null) {
+            throw new IllegalStateException(
+                    "Authentication not found"
+            );
+        }
 
         Object details = authentication.getDetails();
 
@@ -254,17 +383,5 @@ public class UserController {
         throw new IllegalStateException(
                 "User ID not found in authentication"
         );
-    }
-
-    // =========================
-// GET CUSTOMER PHONE
-// INTERNAL SERVICE USE
-// =========================
-
-    @GetMapping("/{id}/phone")
-    public String getCustomerPhone(
-            @PathVariable Long id) {
-
-        return userService.getCustomerPhone(id);
     }
 }

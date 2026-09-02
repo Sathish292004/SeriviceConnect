@@ -7,7 +7,7 @@ import com.serviceconnect.user.exception.UserNotFoundException;
 import com.serviceconnect.user.exception.UserProfileAlreadyExistsException;
 import com.serviceconnect.user.mapper.UserMapper;
 import com.serviceconnect.user.repository.UserRepository;
-
+import com.serviceconnect.user.dto.response.OnboardingStatusResponse;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.security.access.AccessDeniedException;
@@ -190,5 +190,51 @@ public class UserService {
                         );
 
         userRepository.delete(user);
+    }
+
+    // ============================================================
+// GET ONBOARDING STATUS
+// ============================================================
+
+    @Transactional(readOnly = true)
+    public OnboardingStatusResponse getOnboardingStatus(
+            Long userId) {
+
+        var userOptional =
+                userRepository.findById(userId);
+
+        // No profile means onboarding has not started/completed.
+        if (userOptional.isEmpty()) {
+
+            return new OnboardingStatusResponse(
+                    false,
+                    List.of(
+                            "firstName",
+                            "lastName"
+                    )
+            );
+        }
+
+        User user = userOptional.get();
+
+        List<String> missingFields =
+                new java.util.ArrayList<>();
+
+        if (user.getFirstName() == null
+                || user.getFirstName().isBlank()) {
+
+            missingFields.add("firstName");
+        }
+
+        if (user.getLastName() == null
+                || user.getLastName().isBlank()) {
+
+            missingFields.add("lastName");
+        }
+
+        return new OnboardingStatusResponse(
+                missingFields.isEmpty(),
+                missingFields
+        );
     }
 }

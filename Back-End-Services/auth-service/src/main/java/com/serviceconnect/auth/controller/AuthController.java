@@ -1,21 +1,25 @@
 package com.serviceconnect.auth.controller;
 
-import com.serviceconnect.auth.dto.request.LoginRequest;
-import com.serviceconnect.auth.dto.request.LogoutRequest;
-import com.serviceconnect.auth.dto.request.RefreshTokenRequest;
-import com.serviceconnect.auth.dto.request.RegisterRequest;
-import com.serviceconnect.auth.dto.request.VerificationRequest;
+import com.serviceconnect.auth.dto.request.*;
 import com.serviceconnect.auth.dto.response.*;
 import com.serviceconnect.auth.entity.VerificationChannel;
 import com.serviceconnect.auth.service.AuthService;
+import com.serviceconnect.auth.service.PasswordResetService;
 import com.serviceconnect.auth.service.VerificationService;
+
 import jakarta.validation.Valid;
+
+import java.util.Map;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -24,7 +28,13 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+    private final PasswordResetService passwordResetService;
     private final VerificationService verificationService;
+
+
+    // ============================================================
+    // REGISTER
+    // ============================================================
 
     @PostMapping("/register")
     public ResponseEntity<RegisterResponse> register(
@@ -39,6 +49,11 @@ public class AuthController {
                 .body(response);
     }
 
+
+    // ============================================================
+    // LOGIN
+    // ============================================================
+
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(
             @Valid @RequestBody LoginRequest request
@@ -49,6 +64,11 @@ public class AuthController {
 
         return ResponseEntity.ok(response);
     }
+
+
+    // ============================================================
+    // CURRENT AUTHENTICATED USER
+    // ============================================================
 
     @GetMapping("/me")
     public ResponseEntity<MeResponse> me(
@@ -65,21 +85,29 @@ public class AuthController {
 
         Long id = Long.valueOf(subject);
 
-        String email = jwt.getClaimAsString("email");
+        String email =
+                jwt.getClaimAsString("email");
 
-        String role = jwt.getClaimAsString("role");
+        String role =
+                jwt.getClaimAsString("role");
 
-        MeResponse response = MeResponse.builder()
-                .id(id)
-                .email(email)
-                .role(
-                        com.serviceconnect.auth.enums.Role
-                                .valueOf(role)
-                )
-                .build();
+        MeResponse response =
+                MeResponse.builder()
+                        .id(id)
+                        .email(email)
+                        .role(
+                                com.serviceconnect.auth.enums.Role
+                                        .valueOf(role)
+                        )
+                        .build();
 
         return ResponseEntity.ok(response);
     }
+
+
+    // ============================================================
+    // REFRESH TOKEN
+    // ============================================================
 
     @PostMapping("/refresh")
     public ResponseEntity<RefreshTokenResponse> refresh(
@@ -92,6 +120,11 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
+
+    // ============================================================
+    // LOGOUT
+    // ============================================================
+
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(
             @Valid @RequestBody LogoutRequest request
@@ -101,8 +134,15 @@ public class AuthController {
                 request.refreshToken()
         );
 
-        return ResponseEntity.noContent().build();
+        return ResponseEntity
+                .noContent()
+                .build();
     }
+
+
+    // ============================================================
+    // PROVIDER REGISTRATION
+    // ============================================================
 
     @PostMapping("/register/provider")
     public ResponseEntity<RegisterResponse> registerProvider(
@@ -111,8 +151,15 @@ public class AuthController {
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(authService.registerProvider(request));
+                .body(
+                        authService.registerProvider(request)
+                );
     }
+
+
+    // ============================================================
+    // EMAIL VERIFICATION - REQUEST
+    // ============================================================
 
     @PostMapping("/verification/email/request")
     public ResponseEntity<Void> requestEmailVerification(
@@ -124,8 +171,15 @@ public class AuthController {
                 VerificationChannel.EMAIL
         );
 
-        return ResponseEntity.accepted().build();
+        return ResponseEntity
+                .accepted()
+                .build();
     }
+
+
+    // ============================================================
+    // EMAIL VERIFICATION - VERIFY
+    // ============================================================
 
     @PostMapping("/verification/email/verify")
     public ResponseEntity<Void> verifyEmail(
@@ -138,8 +192,15 @@ public class AuthController {
                 request.code()
         );
 
-        return ResponseEntity.noContent().build();
+        return ResponseEntity
+                .noContent()
+                .build();
     }
+
+
+    // ============================================================
+    // PHONE VERIFICATION - REQUEST
+    // ============================================================
 
     @PostMapping("/verification/phone/request")
     public ResponseEntity<Void> requestPhoneVerification(
@@ -151,8 +212,15 @@ public class AuthController {
                 VerificationChannel.PHONE
         );
 
-        return ResponseEntity.accepted().build();
+        return ResponseEntity
+                .accepted()
+                .build();
     }
+
+
+    // ============================================================
+    // PHONE VERIFICATION - VERIFY
+    // ============================================================
 
     @PostMapping("/verification/phone/verify")
     public ResponseEntity<Void> verifyPhone(
@@ -165,8 +233,15 @@ public class AuthController {
                 request.code()
         );
 
-        return ResponseEntity.noContent().build();
+        return ResponseEntity
+                .noContent()
+                .build();
     }
+
+
+    // ============================================================
+    // INTERNAL - GET USER ROLE
+    // ============================================================
 
     @GetMapping("/internal/users/{userId}/role")
     @PreAuthorize("hasRole('ADMIN')")
@@ -177,5 +252,83 @@ public class AuthController {
         return ResponseEntity.ok(
                 authService.getUserRole(userId)
         );
+    }
+
+
+    // ============================================================
+    // FORGOT PASSWORD
+    // ============================================================
+
+    @PostMapping("/password/forgot")
+    public ResponseEntity<Map<String, String>> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request
+    ) {
+
+        String message =
+                passwordResetService.requestPasswordReset(
+                        request.email()
+                );
+
+        return ResponseEntity
+                .accepted()
+                .body(
+                        Map.of(
+                                "message",
+                                message
+                        )
+                );
+    }
+
+
+    // ============================================================
+    // RESET PASSWORD
+    // ============================================================
+
+    @PostMapping("/password/reset")
+    public ResponseEntity<Void> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request
+    ) {
+
+        passwordResetService.resetPassword(
+                request.email(),
+                request.code(),
+                request.newPassword()
+        );
+
+        return ResponseEntity
+                .noContent()
+                .build();
+    }
+
+
+    // ============================================================
+    // CHANGE PASSWORD
+    // ============================================================
+
+    @PostMapping("/password/change")
+    public ResponseEntity<Void> changePassword(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody ChangePasswordRequest request
+    ) {
+
+        String subject = jwt.getSubject();
+
+        if (subject == null || subject.isBlank()) {
+            throw new IllegalStateException(
+                    "JWT subject is missing"
+            );
+        }
+
+        Long userId = Long.valueOf(subject);
+
+        authService.changePassword(
+                userId,
+                request.currentPassword(),
+                request.newPassword()
+        );
+
+        return ResponseEntity
+                .noContent()
+                .build();
     }
 }

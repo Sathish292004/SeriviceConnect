@@ -21,11 +21,18 @@ import java.util.UUID;
 public class RefreshTokenService {
 
     private static final int REFRESH_TOKEN_BYTES = 32;
+
     private static final long REFRESH_TOKEN_DAYS = 30;
 
     private final RefreshTokenRepository refreshTokenRepository;
 
-    private final SecureRandom secureRandom = new SecureRandom();
+    private final SecureRandom secureRandom =
+            new SecureRandom();
+
+
+    // ============================================================
+    // CREATE REFRESH TOKEN
+    // ============================================================
 
     @Transactional
     public String createRefreshToken(User user) {
@@ -61,10 +68,16 @@ public class RefreshTokenService {
         return rawToken;
     }
 
+
+    // ============================================================
+    // VALIDATE AND ROTATE REFRESH TOKEN
+    // ============================================================
+
     @Transactional
     public User validateAndRevoke(String rawToken) {
 
-        String tokenHash = hash(rawToken);
+        String tokenHash =
+                hash(rawToken);
 
         RefreshToken refreshToken =
                 refreshTokenRepository
@@ -76,17 +89,25 @@ public class RefreshTokenService {
                         );
 
         if (refreshToken.isRevoked()) {
+
             throw new IllegalArgumentException(
                     "Refresh token has been revoked"
             );
         }
 
         if (refreshToken.isExpired()) {
+
             throw new IllegalArgumentException(
                     "Refresh token has expired"
             );
         }
 
+        /*
+         * Revoke the old refresh token.
+         *
+         * The caller will create a new refresh token
+         * after this method returns.
+         */
         refreshToken.setRevokedAt(
                 OffsetDateTime.now()
         );
@@ -94,12 +115,19 @@ public class RefreshTokenService {
         return refreshToken.getUser();
     }
 
+
+    // ============================================================
+    // HASH TOKEN
+    // ============================================================
+
     private String hash(String token) {
 
         try {
 
             MessageDigest digest =
-                    MessageDigest.getInstance("SHA-256");
+                    MessageDigest.getInstance(
+                            "SHA-256"
+                    );
 
             byte[] hash =
                     digest.digest(
@@ -108,7 +136,9 @@ public class RefreshTokenService {
                             )
                     );
 
-            return HexFormat.of().formatHex(hash);
+            return HexFormat
+                    .of()
+                    .formatHex(hash);
 
         } catch (NoSuchAlgorithmException exception) {
 
@@ -119,10 +149,16 @@ public class RefreshTokenService {
         }
     }
 
+
+    // ============================================================
+    // REVOKE SINGLE REFRESH TOKEN
+    // ============================================================
+
     @Transactional
     public void revoke(String rawToken) {
 
-        String tokenHash = hash(rawToken);
+        String tokenHash =
+                hash(rawToken);
 
         RefreshToken refreshToken =
                 refreshTokenRepository
@@ -140,5 +176,20 @@ public class RefreshTokenService {
         refreshToken.setRevokedAt(
                 OffsetDateTime.now()
         );
+    }
+
+
+    // ============================================================
+    // REVOKE ALL REFRESH TOKENS FOR USER
+    // ============================================================
+
+    @Transactional
+    public int revokeAllForUser(Long userId) {
+
+        return refreshTokenRepository
+                .revokeAllByUserId(
+                        userId,
+                        OffsetDateTime.now()
+                );
     }
 }

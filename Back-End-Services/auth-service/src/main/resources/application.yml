@@ -40,3 +40,14 @@ eureka:
       defaultZone: http://localhost:8761/eureka/
     register-with-eureka: true
     fetch-registry: true
+
+brevo:
+  api-key: ${BREVO_API_KEY}
+  api-url: https://api.brevo.com/v3/smtp/email
+
+  sender:
+    name: ServiceConnect
+    email: ${BREVO_SENDER_EMAIL}
+
+  sms-api-url: https://api.brevo.com/v3/transactionalSMS/send
+  sms-sender: ServiceConnect

@@ -60,6 +60,18 @@ public class CatalogItemService {
                                 )
                         );
 
+        /*
+         * Customers must not be able to access
+         * deactivated catalog items.
+         */
+        if (!item.getActive()) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Catalog item not found"
+            );
+        }
+
         return toResponse(item);
     }
 
@@ -127,6 +139,9 @@ public class CatalogItemService {
                                 )
                         );
 
+        /*
+         * Ownership check.
+         */
         if (!item.getProviderId().equals(providerId)) {
 
             throw new ResponseStatusException(
@@ -165,6 +180,9 @@ public class CatalogItemService {
                                 )
                         );
 
+        /*
+         * Ownership check.
+         */
         if (!item.getProviderId().equals(providerId)) {
 
             throw new ResponseStatusException(
