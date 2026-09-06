@@ -1,9 +1,10 @@
 package com.serviceconnect.review.repository;
 
 import com.serviceconnect.review.entity.Review;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import java.util.List;
 import java.util.Optional;
 
 public interface ReviewRepository extends JpaRepository<Review, Long> {
@@ -12,9 +13,17 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     Optional<Review> findByBookingIdAndActiveTrue(Long bookingId);
 
-    List<Review> findByProviderIdAndActiveTrue(Long providerId);
+    Page<Review> findByProviderIdAndActiveTrue(
+            Long providerId,
+            Pageable pageable
+    );
 
-    List<Review> findByCustomerIdAndActiveTrue(Long customerId);
+    Page<Review> findByCustomerIdAndActiveTrue(
+            Long customerId,
+            Pageable pageable
+    );
 
-    List<Review> findByActiveTrue();
+    Page<Review> findByActiveTrue(
+            Pageable pageable
+    );
 }

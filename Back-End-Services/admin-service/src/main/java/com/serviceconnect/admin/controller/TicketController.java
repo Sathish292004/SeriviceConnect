@@ -7,20 +7,34 @@ import com.serviceconnect.admin.dto.response.PageResponse;
 import com.serviceconnect.admin.dto.response.TicketResponse;
 import com.serviceconnect.admin.entity.TicketStatus;
 import com.serviceconnect.admin.service.TicketService;
+
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Positive;
+
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+
+import org.springframework.validation.annotation.Validated;
+
 import org.springframework.web.bind.annotation.*;
+
 
 @RestController
 @RequestMapping("/api/v1/tickets")
 @RequiredArgsConstructor
+@Validated
 public class TicketController {
 
     private final TicketService ticketService;
@@ -57,10 +71,24 @@ public class TicketController {
     public ResponseEntity<PageResponse<TicketResponse>>
     getCustomerTickets(
             Authentication authentication,
-            Pageable pageable) {
+
+            @RequestParam(defaultValue = "0")
+            @Min(0)
+            int page,
+
+            @RequestParam(defaultValue = "10")
+            @Min(1)
+            @Max(100)
+            int size) {
 
         Long customerId =
                 currentUserId(authentication);
+
+        Pageable pageable =
+                buildPageable(
+                        page,
+                        size
+                );
 
         return ResponseEntity.ok(
                 ticketService.getCustomerTickets(
@@ -100,10 +128,24 @@ public class TicketController {
     public ResponseEntity<PageResponse<TicketResponse>>
     getAgentTickets(
             Authentication authentication,
-            Pageable pageable) {
+
+            @RequestParam(defaultValue = "0")
+            @Min(0)
+            int page,
+
+            @RequestParam(defaultValue = "10")
+            @Min(1)
+            @Max(100)
+            int size) {
 
         Long agentId =
                 currentUserId(authentication);
+
+        Pageable pageable =
+                buildPageable(
+                        page,
+                        size
+                );
 
         return ResponseEntity.ok(
                 ticketService.getAgentTickets(
@@ -166,7 +208,21 @@ public class TicketController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PageResponse<TicketResponse>>
     getAllTickets(
-            Pageable pageable) {
+
+            @RequestParam(defaultValue = "0")
+            @Min(0)
+            int page,
+
+            @RequestParam(defaultValue = "10")
+            @Min(1)
+            @Max(100)
+            int size) {
+
+        Pageable pageable =
+                buildPageable(
+                        page,
+                        size
+                );
 
         return ResponseEntity.ok(
                 ticketService.getAllTickets(
@@ -180,8 +236,23 @@ public class TicketController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PageResponse<TicketResponse>>
     getTicketsByStatus(
-            @PathVariable TicketStatus status,
-            Pageable pageable) {
+            @PathVariable
+            TicketStatus status,
+
+            @RequestParam(defaultValue = "0")
+            @Min(0)
+            int page,
+
+            @RequestParam(defaultValue = "10")
+            @Min(1)
+            @Max(100)
+            int size) {
+
+        Pageable pageable =
+                buildPageable(
+                        page,
+                        size
+                );
 
         return ResponseEntity.ok(
                 ticketService.getTicketsByStatus(
@@ -250,6 +321,25 @@ public class TicketController {
                         ticketId,
                         request,
                         httpRequest
+                )
+        );
+    }
+
+
+    // ============================================================
+    // PAGINATION
+    // ============================================================
+
+    private Pageable buildPageable(
+            int page,
+            int size) {
+
+        return PageRequest.of(
+                page,
+                size,
+                Sort.by(
+                        Sort.Direction.DESC,
+                        "createdAt"
                 )
         );
     }

@@ -1,12 +1,19 @@
 package com.serviceconnect.review.controller;
 
 import com.serviceconnect.review.dto.request.ReviewRequest;
+import com.serviceconnect.review.dto.response.PageResponse;
 import com.serviceconnect.review.dto.response.ReviewResponse;
 import com.serviceconnect.review.service.ReviewService;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -16,14 +23,14 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 
 @RestController
 @RequestMapping("/api/reviews")
 @RequiredArgsConstructor
+@Validated
 public class ReviewController {
 
     private final ReviewService reviewService;
@@ -105,14 +112,30 @@ public class ReviewController {
     // ============================================================
 
     @GetMapping("/provider/{providerId}")
-    public ResponseEntity<List<ReviewResponse>> getByProvider(
+    public ResponseEntity<PageResponse<ReviewResponse>> getByProvider(
 
             @PathVariable
-            Long providerId) {
+            Long providerId,
+
+            @RequestParam(defaultValue = "0")
+            @Min(0)
+            int page,
+
+            @RequestParam(defaultValue = "10")
+            @Min(1)
+            @Max(100)
+            int size) {
+
+        Pageable pageable =
+                buildPageable(
+                        page,
+                        size
+                );
 
         return ResponseEntity.ok(
                 reviewService.getByProvider(
-                        providerId
+                        providerId,
+                        pageable
                 )
         );
     }
@@ -124,14 +147,30 @@ public class ReviewController {
     // ============================================================
 
     @GetMapping("/customer/{customerId}")
-    public ResponseEntity<List<ReviewResponse>> getByCustomer(
+    public ResponseEntity<PageResponse<ReviewResponse>> getByCustomer(
 
             @PathVariable
-            Long customerId) {
+            Long customerId,
+
+            @RequestParam(defaultValue = "0")
+            @Min(0)
+            int page,
+
+            @RequestParam(defaultValue = "10")
+            @Min(1)
+            @Max(100)
+            int size) {
+
+        Pageable pageable =
+                buildPageable(
+                        page,
+                        size
+                );
 
         return ResponseEntity.ok(
                 reviewService.getByCustomer(
-                        customerId
+                        customerId,
+                        pageable
                 )
         );
     }
@@ -143,10 +182,27 @@ public class ReviewController {
     // ============================================================
 
     @GetMapping
-    public ResponseEntity<List<ReviewResponse>> getAll() {
+    public ResponseEntity<PageResponse<ReviewResponse>> getAll(
+
+            @RequestParam(defaultValue = "0")
+            @Min(0)
+            int page,
+
+            @RequestParam(defaultValue = "10")
+            @Min(1)
+            @Max(100)
+            int size) {
+
+        Pageable pageable =
+                buildPageable(
+                        page,
+                        size
+                );
 
         return ResponseEntity.ok(
-                reviewService.getAllActive()
+                reviewService.getAllActive(
+                        pageable
+                )
         );
     }
 
@@ -215,4 +271,23 @@ public class ReviewController {
                 .build();
     }
 
+
+    // ============================================================
+    // BUILD PAGINATION
+    // ============================================================
+
+    private Pageable buildPageable(
+            int page,
+            int size
+    ) {
+
+        return PageRequest.of(
+                page,
+                size,
+                Sort.by(
+                        Sort.Direction.DESC,
+                        "createdAt"
+                )
+        );
+    }
 }

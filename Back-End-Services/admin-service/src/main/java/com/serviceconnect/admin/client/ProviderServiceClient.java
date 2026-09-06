@@ -1,5 +1,7 @@
 package com.serviceconnect.admin.client;
 
+import com.serviceconnect.admin.dto.response.PageResponse;
+
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -97,12 +99,26 @@ public class ProviderServiceClient {
     // ADMIN
     // ============================================================
 
-    public List<ProviderResponse> getAllProviders(
+    public PageResponse<ProviderResponse> getAllProviders(
+            int page,
+            int size,
             String authorizationHeader) {
 
         return restClient()
                 .get()
-                .uri("/api/v1/providers/admin/all")
+                .uri(uriBuilder ->
+                        uriBuilder
+                                .path("/api/v1/providers/admin/all")
+                                .queryParam(
+                                        "page",
+                                        page
+                                )
+                                .queryParam(
+                                        "size",
+                                        size
+                                )
+                                .build()
+                )
                 .header(
                         HttpHeaders.AUTHORIZATION,
                         authorizationHeader
@@ -110,7 +126,7 @@ public class ProviderServiceClient {
                 .retrieve()
                 .body(
                         new ParameterizedTypeReference<
-                                List<ProviderResponse>>() {}
+                                PageResponse<ProviderResponse>>() {}
                 );
     }
 
@@ -120,8 +136,10 @@ public class ProviderServiceClient {
     // ADMIN
     // ============================================================
 
-    public List<ProviderResponse> getProvidersByStatus(
+    public PageResponse<ProviderResponse> getProvidersByStatus(
             String status,
+            int page,
+            int size,
             String authorizationHeader) {
 
         return restClient()
@@ -133,6 +151,14 @@ public class ProviderServiceClient {
                                         "status",
                                         status
                                 )
+                                .queryParam(
+                                        "page",
+                                        page
+                                )
+                                .queryParam(
+                                        "size",
+                                        size
+                                )
                                 .build()
                 )
                 .header(
@@ -142,7 +168,7 @@ public class ProviderServiceClient {
                 .retrieve()
                 .body(
                         new ParameterizedTypeReference<
-                                List<ProviderResponse>>() {}
+                                PageResponse<ProviderResponse>>() {}
                 );
     }
 

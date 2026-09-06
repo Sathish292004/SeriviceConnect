@@ -3,6 +3,7 @@ package com.serviceconnect.review.service;
 import com.serviceconnect.review.client.BookingServiceClient;
 import com.serviceconnect.review.client.ProviderServiceClient;
 import com.serviceconnect.review.dto.request.ReviewRequest;
+import com.serviceconnect.review.dto.response.PageResponse;
 import com.serviceconnect.review.dto.response.ReviewResponse;
 import com.serviceconnect.review.entity.Review;
 import com.serviceconnect.review.repository.ReviewRepository;
@@ -11,12 +12,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -139,9 +140,7 @@ public class ReviewService {
         // --------------------------------------------------------
 
         if (booking.customerId() == null
-                || !booking.customerId().equals(
-                customerId
-        )) {
+                || !booking.customerId().equals(customerId)) {
 
             log.warn(
                     "Review creation denied: booking ownership failed, " +
@@ -443,21 +442,18 @@ public class ReviewService {
     // ============================================================
 
     @Transactional(readOnly = true)
-    public List<ReviewResponse> getAllActive() {
+    public PageResponse<ReviewResponse> getAllActive(
+            Pageable pageable
+    ) {
 
-        List<ReviewResponse> reviews =
-                reviewRepository
-                        .findByActiveTrue()
-                        .stream()
-                        .map(this::toResponse)
-                        .toList();
+        Page<Review> page =
+                reviewRepository.findByActiveTrue(
+                        pageable
+                );
 
-        log.debug(
-                "Active reviews retrieved: count={}",
-                reviews.size()
+        return toPageResponse(
+                page
         );
-
-        return reviews;
     }
 
 
@@ -466,26 +462,20 @@ public class ReviewService {
     // ============================================================
 
     @Transactional(readOnly = true)
-    public List<ReviewResponse> getByProvider(
-            Long providerId
+    public PageResponse<ReviewResponse> getByProvider(
+            Long providerId,
+            Pageable pageable
     ) {
 
-        List<ReviewResponse> reviews =
-                reviewRepository
-                        .findByProviderIdAndActiveTrue(
-                                providerId
-                        )
-                        .stream()
-                        .map(this::toResponse)
-                        .toList();
+        Page<Review> page =
+                reviewRepository.findByProviderIdAndActiveTrue(
+                        providerId,
+                        pageable
+                );
 
-        log.debug(
-                "Provider reviews retrieved: providerId={}, count={}",
-                providerId,
-                reviews.size()
+        return toPageResponse(
+                page
         );
-
-        return reviews;
     }
 
 
@@ -494,26 +484,20 @@ public class ReviewService {
     // ============================================================
 
     @Transactional(readOnly = true)
-    public List<ReviewResponse> getByCustomer(
-            Long customerId
+    public PageResponse<ReviewResponse> getByCustomer(
+            Long customerId,
+            Pageable pageable
     ) {
 
-        List<ReviewResponse> reviews =
-                reviewRepository
-                        .findByCustomerIdAndActiveTrue(
-                                customerId
-                        )
-                        .stream()
-                        .map(this::toResponse)
-                        .toList();
+        Page<Review> page =
+                reviewRepository.findByCustomerIdAndActiveTrue(
+                        customerId,
+                        pageable
+                );
 
-        log.debug(
-                "Customer reviews retrieved: customerId={}, count={}",
-                customerId,
-                reviews.size()
+        return toPageResponse(
+                page
         );
-
-        return reviews;
     }
 
 
@@ -527,8 +511,7 @@ public class ReviewService {
     ) {
 
         Review review =
-                reviewRepository
-                        .findByBookingIdAndActiveTrue(
+                reviewRepository.findByBookingIdAndActiveTrue(
                                 bookingId
                         )
                         .orElseThrow(() -> {
@@ -811,6 +794,29 @@ public class ReviewService {
                 review.getBookingId(),
                 review.getCustomerId(),
                 review.getProviderId()
+        );
+    }
+
+
+    // ============================================================
+    // CONVERT PAGE -> PAGE RESPONSE
+    // ============================================================
+
+    private PageResponse<ReviewResponse> toPageResponse(
+            Page<Review> page
+    ) {
+
+        return new PageResponse<>(
+                page.getContent()
+                        .stream()
+                        .map(this::toResponse)
+                        .toList(),
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements(),
+                page.getTotalPages(),
+                page.isFirst(),
+                page.isLast()
         );
     }
 
