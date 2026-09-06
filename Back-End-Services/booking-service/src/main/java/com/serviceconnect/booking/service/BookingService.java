@@ -4,10 +4,12 @@ import com.serviceconnect.booking.client.CatalogServiceClient;
 import com.serviceconnect.booking.client.ProviderServiceClient;
 import com.serviceconnect.booking.client.UserServiceClient;
 import com.serviceconnect.booking.dto.request.CreateServiceRequest;
+import com.serviceconnect.booking.dto.response.PageResponse;
 import com.serviceconnect.booking.dto.response.ServiceRequestResponse;
 import com.serviceconnect.booking.entity.ServiceRequest;
 import com.serviceconnect.booking.repository.ServiceRequestRepository;
-
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -18,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -624,22 +625,22 @@ public class BookingService {
     // ============================================================
 
     @Transactional(readOnly = true)
-    public List<ServiceRequestResponse> getCustomerRequests(
-            Long customerId
+    public PageResponse<ServiceRequestResponse> getCustomerRequests(
+            Long customerId,
+            Pageable pageable
     ) {
 
-        return serviceRequestRepository
-                .findByCustomerIdOrderByCreatedAtDesc(
-                        customerId
-                )
-                .stream()
-                .map(request ->
-                        toResponse(
-                                request,
-                                false
-                        )
-                )
-                .toList();
+        Page<ServiceRequest> page =
+                serviceRequestRepository
+                        .findByCustomerIdOrderByCreatedAtDesc(
+                                customerId,
+                                pageable
+                        );
+
+        return toPageResponse(
+                page,
+                false
+        );
     }
 
 
@@ -648,22 +649,22 @@ public class BookingService {
     // ============================================================
 
     @Transactional(readOnly = true)
-    public List<ServiceRequestResponse> getProviderRequests(
-            Long providerId
+    public PageResponse<ServiceRequestResponse> getProviderRequests(
+            Long providerId,
+            Pageable pageable
     ) {
 
-        return serviceRequestRepository
-                .findByProviderIdOrderByCreatedAtDesc(
-                        providerId
-                )
-                .stream()
-                .map(request ->
-                        toResponse(
-                                request,
-                                canProviderSeePhone(request)
-                        )
-                )
-                .toList();
+        Page<ServiceRequest> page =
+                serviceRequestRepository
+                        .findByProviderIdOrderByCreatedAtDesc(
+                                providerId,
+                                pageable
+                        );
+
+        return toPageResponse(
+                page,
+                true
+        );
     }
 
 
@@ -672,27 +673,27 @@ public class BookingService {
     // ============================================================
 
     @Transactional(readOnly = true)
-    public List<ServiceRequestResponse> getProviderRequestsByStatus(
+    public PageResponse<ServiceRequestResponse> getProviderRequestsByStatus(
             Long providerId,
-            String status
+            String status,
+            Pageable pageable
     ) {
 
         String normalizedStatus =
                 normalizeStatus(status);
 
-        return serviceRequestRepository
-                .findByProviderIdAndStatusOrderByCreatedAtDesc(
-                        providerId,
-                        normalizedStatus
-                )
-                .stream()
-                .map(request ->
-                        toResponse(
-                                request,
-                                canProviderSeePhone(request)
-                        )
-                )
-                .toList();
+        Page<ServiceRequest> page =
+                serviceRequestRepository
+                        .findByProviderIdAndStatusOrderByCreatedAtDesc(
+                                providerId,
+                                normalizedStatus,
+                                pageable
+                        );
+
+        return toPageResponse(
+                page,
+                true
+        );
     }
 
 
@@ -1309,6 +1310,37 @@ public class BookingService {
         }
 
         return false;
+    }
+
+
+    // ============================================================
+    // PAGE -> RESPONSE
+    // ============================================================
+
+    private PageResponse<ServiceRequestResponse> toPageResponse(
+            Page<ServiceRequest> page,
+            boolean providerView
+    ) {
+
+        return new PageResponse<>(
+                page.getContent()
+                        .stream()
+                        .map(request ->
+                                toResponse(
+                                        request,
+                                        providerView
+                                                && canProviderSeePhone(request)
+                                )
+                        )
+                        .toList(),
+
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements(),
+                page.getTotalPages(),
+                page.isFirst(),
+                page.isLast()
+        );
     }
 
 

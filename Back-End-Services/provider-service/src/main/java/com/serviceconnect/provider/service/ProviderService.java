@@ -1,6 +1,7 @@
 package com.serviceconnect.provider.service;
 
 import com.serviceconnect.provider.dto.request.CreateProviderRequest;
+import com.serviceconnect.provider.dto.response.PageResponse;
 import com.serviceconnect.provider.dto.response.ProviderOnboardingStatusResponse;
 import com.serviceconnect.provider.dto.response.ProviderPhotoResponse;
 import com.serviceconnect.provider.dto.response.ProviderResponse;
@@ -12,6 +13,8 @@ import com.serviceconnect.provider.repository.ProviderRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -190,21 +193,23 @@ public class ProviderService {
     // ============================================================
 
     @Transactional(readOnly = true)
-    public List<ProviderResponse> getAllProviders() {
+    public PageResponse<ProviderResponse> getAllProviders(
+            Pageable pageable) {
 
-        List<ProviderResponse> providers =
+        Page<Provider> page =
                 providerRepository
-                        .findAll()
-                        .stream()
-                        .map(this::toResponse)
-                        .toList();
+                        .findAll(pageable);
 
         log.debug(
-                "All providers retrieved: count={}",
-                providers.size()
+                "Providers retrieved: page={}, size={}, totalElements={}",
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements()
         );
 
-        return providers;
+        return toPageResponse(
+                page
+        );
     }
 
 
@@ -213,8 +218,9 @@ public class ProviderService {
     // ============================================================
 
     @Transactional(readOnly = true)
-    public List<ProviderResponse> getProvidersByStatus(
-            String status) {
+    public PageResponse<ProviderResponse> getProvidersByStatus(
+            String status,
+            Pageable pageable) {
 
         if (status == null
                 || status.isBlank()) {
@@ -248,20 +254,24 @@ public class ProviderService {
             );
         }
 
-        List<ProviderResponse> providers =
+        Page<Provider> page =
                 providerRepository
-                        .findByStatus(normalizedStatus)
-                        .stream()
-                        .map(this::toResponse)
-                        .toList();
+                        .findByStatus(
+                                normalizedStatus,
+                                pageable
+                        );
 
         log.debug(
-                "Providers retrieved by status: status={}, count={}",
+                "Providers retrieved by status: status={}, page={}, size={}, totalElements={}",
                 normalizedStatus,
-                providers.size()
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements()
         );
 
-        return providers;
+        return toPageResponse(
+                page
+        );
     }
 
 
@@ -715,21 +725,26 @@ public class ProviderService {
     // ============================================================
 
     @Transactional(readOnly = true)
-    public List<ProviderResponse> getApprovedProviders() {
+    public PageResponse<ProviderResponse> getApprovedProviders(
+            Pageable pageable) {
 
-        List<ProviderResponse> providers =
+        Page<Provider> page =
                 providerRepository
-                        .findByStatus("APPROVED")
-                        .stream()
-                        .map(this::toResponse)
-                        .toList();
+                        .findByStatus(
+                                "APPROVED",
+                                pageable
+                        );
 
         log.debug(
-                "Approved providers retrieved: count={}",
-                providers.size()
+                "Approved providers retrieved: page={}, size={}, totalElements={}",
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements()
         );
 
-        return providers;
+        return toPageResponse(
+                page
+        );
     }
 
 
@@ -964,6 +979,29 @@ public class ProviderService {
         }
 
         return first.equals(second);
+    }
+
+
+    // ============================================================
+    // PAGE -> RESPONSE
+    // ============================================================
+
+    private PageResponse<ProviderResponse> toPageResponse(
+            Page<Provider> page) {
+
+        return new PageResponse<>(
+                page.getContent()
+                        .stream()
+                        .map(this::toResponse)
+                        .toList(),
+
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements(),
+                page.getTotalPages(),
+                page.isFirst(),
+                page.isLast()
+        );
     }
 
 

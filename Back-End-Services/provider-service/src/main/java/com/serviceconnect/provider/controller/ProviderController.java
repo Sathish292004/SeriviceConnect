@@ -3,25 +3,37 @@ package com.serviceconnect.provider.controller;
 import com.serviceconnect.provider.dto.request.CreateProviderRequest;
 import com.serviceconnect.provider.dto.request.UpdateProviderLocationRequest;
 import com.serviceconnect.provider.dto.request.UpdateProviderStatusRequest;
+import com.serviceconnect.provider.dto.response.PageResponse;
 import com.serviceconnect.provider.dto.response.ProviderOnboardingStatusResponse;
 import com.serviceconnect.provider.dto.response.ProviderResponse;
 import com.serviceconnect.provider.service.ProviderService;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Positive;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+
 import org.springframework.http.ResponseEntity;
+
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 
+import org.springframework.validation.annotation.Validated;
+
 import org.springframework.web.bind.annotation.*;
+
 
 @RestController
 @RequestMapping("/api/v1/providers")
 @RequiredArgsConstructor
+@Validated
 public class ProviderController {
 
     private final ProviderService providerService;
@@ -62,22 +74,47 @@ public class ProviderController {
 
     @GetMapping("/admin/all")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> getAllProviders(
+    public ResponseEntity<PageResponse<ProviderResponse>>
+    getAllProviders(
 
-            @RequestParam(required = false)
-            String status) {
+            @RequestParam(
+                    required = false
+            )
+            String status,
+
+            @RequestParam(
+                    defaultValue = "0"
+            )
+            @Min(0)
+            int page,
+
+            @RequestParam(
+                    defaultValue = "20"
+            )
+            @Min(1)
+            @Max(100)
+            int size) {
+
+        Pageable pageable =
+                buildPageable(
+                        page,
+                        size
+                );
 
         if (status == null
                 || status.isBlank()) {
 
             return ResponseEntity.ok(
-                    providerService.getAllProviders()
+                    providerService.getAllProviders(
+                            pageable
+                    )
             );
         }
 
         return ResponseEntity.ok(
                 providerService.getProvidersByStatus(
-                        status
+                        status,
+                        pageable
                 )
         );
     }
@@ -113,7 +150,8 @@ public class ProviderController {
         // PROVIDER can only view own profile
         if ("PROVIDER".equals(role)
                 && !authenticatedUserId.equals(
-                provider.userId())) {
+                provider.userId()
+        )) {
 
             throw new org.springframework.security.access.AccessDeniedException(
                     "You can only view your own provider profile"
@@ -233,10 +271,29 @@ public class ProviderController {
 
     @GetMapping
     @PreAuthorize("hasRole('CUSTOMER')")
-    public ResponseEntity<?> getApprovedProviders() {
+    public ResponseEntity<PageResponse<ProviderResponse>>
+    getApprovedProviders(
+
+            @RequestParam(
+                    defaultValue = "0"
+            )
+            @Min(0)
+            int page,
+
+            @RequestParam(
+                    defaultValue = "20"
+            )
+            @Min(1)
+            @Max(100)
+            int size) {
 
         return ResponseEntity.ok(
-                providerService.getApprovedProviders()
+                providerService.getApprovedProviders(
+                        buildPageable(
+                                page,
+                                size
+                        )
+                )
         );
     }
 
@@ -312,6 +369,25 @@ public class ProviderController {
         return ResponseEntity.ok(
                 providerService.getOnboardingStatus(
                         userId
+                )
+        );
+    }
+
+
+    // ============================================================
+    // PAGINATION
+    // ============================================================
+
+    private Pageable buildPageable(
+            int page,
+            int size) {
+
+        return PageRequest.of(
+                page,
+                size,
+                Sort.by(
+                        Sort.Direction.DESC,
+                        "createdAt"
                 )
         );
     }

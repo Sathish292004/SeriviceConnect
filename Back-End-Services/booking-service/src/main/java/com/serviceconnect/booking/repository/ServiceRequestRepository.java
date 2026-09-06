@@ -2,25 +2,26 @@ package com.serviceconnect.booking.repository;
 
 import com.serviceconnect.booking.entity.ServiceRequest;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.OffsetDateTime;
-import java.util.List;
 import java.util.Optional;
 
 public interface ServiceRequestRepository
         extends JpaRepository<ServiceRequest, Long> {
 
-
     // ============================================================
     // CUSTOMER REQUESTS
     // ============================================================
 
-    List<ServiceRequest>
+    Page<ServiceRequest>
     findByCustomerIdOrderByCreatedAtDesc(
-            Long customerId
+            Long customerId,
+            Pageable pageable
     );
 
 
@@ -28,16 +29,18 @@ public interface ServiceRequestRepository
     // PROVIDER REQUESTS
     // ============================================================
 
-    List<ServiceRequest>
+    Page<ServiceRequest>
     findByProviderIdOrderByCreatedAtDesc(
-            Long providerId
+            Long providerId,
+            Pageable pageable
     );
 
 
-    List<ServiceRequest>
+    Page<ServiceRequest>
     findByProviderIdAndStatusOrderByCreatedAtDesc(
             Long providerId,
-            String status
+            String status,
+            Pageable pageable
     );
 
 

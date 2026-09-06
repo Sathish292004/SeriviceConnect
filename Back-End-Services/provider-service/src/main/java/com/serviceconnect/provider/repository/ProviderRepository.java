@@ -2,9 +2,10 @@ package com.serviceconnect.provider.repository;
 
 import com.serviceconnect.provider.entity.Provider;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import java.util.List;
 import java.util.Optional;
 
 public interface ProviderRepository
@@ -14,13 +15,12 @@ public interface ProviderRepository
             Long userId
     );
 
-
     Optional<Provider> findByUserId(
             Long userId
     );
 
-
-    List<Provider> findByStatus(
-            String status
+    Page<Provider> findByStatus(
+            String status,
+            Pageable pageable
     );
 }

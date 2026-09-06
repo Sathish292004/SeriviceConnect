@@ -3,14 +3,20 @@ package com.serviceconnect.booking.controller;
 import com.serviceconnect.booking.client.ProviderServiceClient;
 import com.serviceconnect.booking.dto.request.CreateServiceRequest;
 import com.serviceconnect.booking.dto.request.UpdateServiceRequestStatus;
+import com.serviceconnect.booking.dto.response.PageResponse;
 import com.serviceconnect.booking.dto.response.ServiceRequestResponse;
 import com.serviceconnect.booking.service.BookingService;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Positive;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
@@ -18,13 +24,14 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
-import org.springframework.web.bind.annotation.*;
+import org.springframework.validation.annotation.Validated;
 
-import java.util.List;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/bookings")
 @RequiredArgsConstructor
+@Validated
 public class BookingController {
 
     private final BookingService bookingService;
@@ -125,8 +132,21 @@ public class BookingController {
 
     @GetMapping("/customers/requests")
     @PreAuthorize("hasRole('CUSTOMER')")
-    public ResponseEntity<List<ServiceRequestResponse>>
+    public ResponseEntity<PageResponse<ServiceRequestResponse>>
     getCustomerRequests(
+
+            @RequestParam(
+                    defaultValue = "0"
+            )
+            @Min(0)
+            int page,
+
+            @RequestParam(
+                    defaultValue = "20"
+            )
+            @Min(1)
+            @Max(100)
+            int size,
 
             @AuthenticationPrincipal
             Jwt jwt
@@ -137,7 +157,8 @@ public class BookingController {
 
         return ResponseEntity.ok(
                 bookingService.getCustomerRequests(
-                        customerId
+                        customerId,
+                        buildPageable(page, size)
                 )
         );
     }
@@ -149,8 +170,21 @@ public class BookingController {
 
     @GetMapping("/providers/requests")
     @PreAuthorize("hasRole('PROVIDER')")
-    public ResponseEntity<List<ServiceRequestResponse>>
+    public ResponseEntity<PageResponse<ServiceRequestResponse>>
     getProviderRequests(
+
+            @RequestParam(
+                    defaultValue = "0"
+            )
+            @Min(0)
+            int page,
+
+            @RequestParam(
+                    defaultValue = "20"
+            )
+            @Min(1)
+            @Max(100)
+            int size,
 
             @AuthenticationPrincipal
             Jwt jwt
@@ -167,7 +201,8 @@ public class BookingController {
 
         return ResponseEntity.ok(
                 bookingService.getProviderRequests(
-                        providerId
+                        providerId,
+                        buildPageable(page, size)
                 )
         );
     }
@@ -179,11 +214,24 @@ public class BookingController {
 
     @GetMapping("/providers/requests/status")
     @PreAuthorize("hasRole('PROVIDER')")
-    public ResponseEntity<List<ServiceRequestResponse>>
+    public ResponseEntity<PageResponse<ServiceRequestResponse>>
     getProviderRequestsByStatus(
 
             @RequestParam
             String status,
+
+            @RequestParam(
+                    defaultValue = "0"
+            )
+            @Min(0)
+            int page,
+
+            @RequestParam(
+                    defaultValue = "20"
+            )
+            @Min(1)
+            @Max(100)
+            int size,
 
             @AuthenticationPrincipal
             Jwt jwt
@@ -201,7 +249,8 @@ public class BookingController {
         return ResponseEntity.ok(
                 bookingService.getProviderRequestsByStatus(
                         providerId,
-                        status
+                        status,
+                        buildPageable(page, size)
                 )
         );
     }
@@ -309,6 +358,26 @@ public class BookingController {
         }
 
         return ResponseEntity.ok(response);
+    }
+
+
+    // ============================================================
+    // PAGINATION
+    // ============================================================
+
+    private Pageable buildPageable(
+            int page,
+            int size
+    ) {
+
+        return PageRequest.of(
+                page,
+                size,
+                Sort.by(
+                        Sort.Direction.DESC,
+                        "createdAt"
+                )
+        );
     }
 
 
