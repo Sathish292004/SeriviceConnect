@@ -214,8 +214,12 @@ public class ProviderService {
 
 
     // ============================================================
-    // UPDATE PROVIDER
+    // UPDATE PROVIDER PROFILE
     // PROVIDER CAN UPDATE ONLY OWN PROFILE
+    //
+    // PROFILE RULE:
+    // If an APPROVED provider changes approval-sensitive
+    // information, status becomes PENDING for admin re-review.
     // ============================================================
 
     public ProviderResponse updateProvider(
@@ -233,44 +237,150 @@ public class ProviderService {
                                 )
                         );
 
+        // --------------------------------------------------------
+        // OWNERSHIP CHECK
+        // --------------------------------------------------------
+
         validateOwnership(
                 provider,
                 authenticatedUserId
         );
 
+        // --------------------------------------------------------
+        // NORMALIZE NEW VALUES
+        // --------------------------------------------------------
+
+        String newBusinessName =
+                request.businessName().trim();
+
+        String newPhone =
+                request.phone().trim();
+
+        String newEmail =
+                request.email()
+                        .trim()
+                        .toLowerCase();
+
+        String newDescription =
+                request.description();
+
+        String newAddress =
+                normalizeOptionalText(
+                        request.address()
+                );
+
+        String newCity =
+                normalizeOptionalText(
+                        request.city()
+                );
+
+        String newState =
+                normalizeOptionalText(
+                        request.state()
+                );
+
+        String newPostalCode =
+                normalizeOptionalText(
+                        request.postalCode()
+                );
+
+        // --------------------------------------------------------
+        // DETECT APPROVAL-SENSITIVE CHANGES
+        //
+        // Description is intentionally excluded.
+        // --------------------------------------------------------
+
+        boolean approvalSensitiveChange =
+                !newBusinessName.equals(
+                        provider.getBusinessName()
+                )
+                        || !newPhone.equals(
+                        provider.getPhone()
+                )
+                        || !newEmail.equals(
+                        provider.getEmail()
+                )
+                        || !equalsNullable(
+                        newAddress,
+                        normalizeOptionalText(
+                                provider.getAddress()
+                        )
+                )
+                        || !equalsNullable(
+                        newCity,
+                        normalizeOptionalText(
+                                provider.getCity()
+                        )
+                )
+                        || !equalsNullable(
+                        newState,
+                        normalizeOptionalText(
+                                provider.getState()
+                        )
+                )
+                        || !equalsNullable(
+                        newPostalCode,
+                        normalizeOptionalText(
+                                provider.getPostalCode()
+                        )
+                );
+
+        // --------------------------------------------------------
+        // UPDATE PROFILE
+        // --------------------------------------------------------
+
         provider.setBusinessName(
-                request.businessName().trim()
+                newBusinessName
         );
 
         provider.setDescription(
-                request.description()
+                newDescription
         );
 
         provider.setPhone(
-                request.phone().trim()
+                newPhone
         );
 
         provider.setEmail(
-                request.email()
-                        .trim()
-                        .toLowerCase()
+                newEmail
         );
 
         provider.setAddress(
-                request.address()
+                newAddress
         );
 
         provider.setCity(
-                request.city()
+                newCity
         );
 
         provider.setState(
-                request.state()
+                newState
         );
 
         provider.setPostalCode(
-                request.postalCode()
+                newPostalCode
         );
+
+        // --------------------------------------------------------
+        // APPROVAL RE-CHECK RULE
+        //
+        // APPROVED + approval-sensitive change
+        //                  ↓
+        //               PENDING
+        // --------------------------------------------------------
+
+        if ("APPROVED".equalsIgnoreCase(
+                provider.getStatus()
+        ) && approvalSensitiveChange) {
+
+            provider.setStatus(
+                    "PENDING"
+            );
+        }
+
+        // --------------------------------------------------------
+        // UPDATE TIMESTAMP
+        // --------------------------------------------------------
 
         provider.setUpdatedAt(
                 OffsetDateTime.now()
@@ -315,14 +425,26 @@ public class ProviderService {
     // UPDATE PROVIDER STATUS
     // ADMIN ONLY
     //
-    // APPROVED  -> Customer can see
-    // REJECTED  -> Customer cannot see
-    // SUSPENDED -> Customer cannot see
+    // STATE MACHINE:
+    //
+    // PENDING   -> APPROVED
+    // PENDING   -> REJECTED
+    //
+    // APPROVED  -> SUSPENDED
+    //
+    // SUSPENDED -> APPROVED
+    // REJECTED  -> PENDING
+    //
+    // Invalid transitions -> 409 CONFLICT
     // ============================================================
 
     public ProviderResponse updateProviderStatus(
             Long providerId,
             String status) {
+
+        // --------------------------------------------------------
+        // FIND PROVIDER
+        // --------------------------------------------------------
 
         Provider provider =
                 providerRepository
@@ -334,6 +456,10 @@ public class ProviderService {
                                 )
                         );
 
+        // --------------------------------------------------------
+        // VALIDATE REQUESTED STATUS
+        // --------------------------------------------------------
+
         if (status == null
                 || status.isBlank()) {
 
@@ -343,18 +469,89 @@ public class ProviderService {
             );
         }
 
-        String newStatus =
-                status.trim().toUpperCase();
+        // --------------------------------------------------------
+        // NORMALIZE CURRENT + NEW STATUS
+        // --------------------------------------------------------
 
-        if (!newStatus.equals("APPROVED")
+        String currentStatus =
+                provider.getStatus()
+                        .trim()
+                        .toUpperCase();
+
+        String newStatus =
+                status.trim()
+                        .toUpperCase();
+
+        // --------------------------------------------------------
+        // VALIDATE STATUS VALUE
+        // --------------------------------------------------------
+
+        if (!newStatus.equals("PENDING")
+                && !newStatus.equals("APPROVED")
                 && !newStatus.equals("REJECTED")
                 && !newStatus.equals("SUSPENDED")) {
 
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "Status must be APPROVED, REJECTED or SUSPENDED"
+                    "Status must be PENDING, APPROVED, REJECTED or SUSPENDED"
             );
         }
+
+        // --------------------------------------------------------
+        // SAME STATUS IS NOT A VALID TRANSITION
+        // --------------------------------------------------------
+
+        if (currentStatus.equals(newStatus)) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Provider is already in status "
+                            + currentStatus
+            );
+        }
+
+        // --------------------------------------------------------
+        // VALIDATE STATE TRANSITION
+        // --------------------------------------------------------
+
+        boolean validTransition =
+                switch (currentStatus) {
+
+                    case "PENDING" ->
+                            newStatus.equals("APPROVED")
+                                    || newStatus.equals("REJECTED");
+
+                    case "APPROVED" ->
+                            newStatus.equals("SUSPENDED");
+
+                    case "SUSPENDED" ->
+                            newStatus.equals("APPROVED");
+
+                    case "REJECTED" ->
+                            newStatus.equals("PENDING");
+
+                    default ->
+                            false;
+                };
+
+        // --------------------------------------------------------
+        // REJECT INVALID TRANSITION
+        // --------------------------------------------------------
+
+        if (!validTransition) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Invalid provider status transition: "
+                            + currentStatus
+                            + " -> "
+                            + newStatus
+            );
+        }
+
+        // --------------------------------------------------------
+        // UPDATE STATUS
+        // --------------------------------------------------------
 
         provider.setStatus(
                 newStatus
@@ -527,6 +724,50 @@ public class ProviderService {
 
 
     // ============================================================
+    // NORMALIZE OPTIONAL PROFILE FIELD
+    // ============================================================
+
+    private String normalizeOptionalText(
+            String value) {
+
+        if (value == null) {
+            return null;
+        }
+
+        String normalized =
+                value.trim();
+
+        return normalized.isEmpty()
+                ? null
+                : normalized;
+    }
+
+
+    // ============================================================
+    // NULL-SAFE STRING COMPARISON
+    // ============================================================
+
+    private boolean equalsNullable(
+            String first,
+            String second) {
+
+        if (first == null
+                && second == null) {
+
+            return true;
+        }
+
+        if (first == null
+                || second == null) {
+
+            return false;
+        }
+
+        return first.equals(second);
+    }
+
+
+    // ============================================================
     // ENTITY -> RESPONSE
     // ============================================================
 
@@ -599,6 +840,7 @@ public class ProviderService {
                 photo.getCreatedAt()
         );
     }
+
 
     // ============================================================
     // PROVIDER - GET ONBOARDING STATUS

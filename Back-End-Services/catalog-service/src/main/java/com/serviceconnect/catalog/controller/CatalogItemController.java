@@ -1,16 +1,14 @@
 package com.serviceconnect.catalog.controller;
 
-import com.serviceconnect.catalog.client.ProviderServiceClient;
+
 import com.serviceconnect.catalog.dto.request.CatalogItemRequest;
 import com.serviceconnect.catalog.dto.response.CatalogItemResponse;
 import com.serviceconnect.catalog.service.CatalogItemService;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Positive;
 
 import lombok.RequiredArgsConstructor;
 
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
@@ -21,7 +19,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-
 @RestController
 @RequestMapping("/api/catalog")
 @RequiredArgsConstructor
@@ -29,11 +26,9 @@ public class CatalogItemController {
 
     private final CatalogItemService catalogItemService;
 
-    private final ProviderServiceClient providerServiceClient;
-
 
     // ============================================================
-    // PROVIDER - CREATE CATALOG ITEM
+    // CREATE CATALOG ITEM
     // ============================================================
 
     @PostMapping
@@ -42,17 +37,13 @@ public class CatalogItemController {
 
             Authentication authentication,
 
-            @RequestHeader(HttpHeaders.AUTHORIZATION)
-            String authorizationHeader,
-
             @Valid
             @RequestBody
             CatalogItemRequest request) {
 
         Long providerId =
-                resolveProviderId(
-                        authentication,
-                        authorizationHeader
+                Long.valueOf(
+                        authentication.getName()
                 );
 
         CatalogItemResponse response =
@@ -68,74 +59,111 @@ public class CatalogItemController {
 
 
     // ============================================================
-    // GET ACTIVE CATALOG ITEM BY ID
+    // GET CATALOG ITEM BY ID
+    //
+    // ONLY ACTIVE + APPROVED PROVIDER
     // ============================================================
 
     @GetMapping("/{id}")
     public ResponseEntity<CatalogItemResponse> getById(
 
             @PathVariable
-            @Positive
-            Long id) {
+            Long id,
+
+            @RequestHeader(
+                    value = "Authorization",
+                    required = false
+            )
+            String authorizationHeader) {
 
         return ResponseEntity.ok(
-                catalogItemService.getById(id)
+                catalogItemService.getById(
+                        id,
+                        authorizationHeader
+                )
         );
     }
 
 
     // ============================================================
-    // GET ALL ACTIVE CATALOG ITEMS
+    // GET APPROVED + ACTIVE CATALOG
     // ============================================================
 
     @GetMapping
-    public ResponseEntity<List<CatalogItemResponse>> getAll() {
+    public ResponseEntity<List<CatalogItemResponse>> getAll(
+
+            @RequestHeader(
+                    value = "Authorization",
+                    required = false
+            )
+            String authorizationHeader) {
 
         return ResponseEntity.ok(
-                catalogItemService.getAllActive()
+                catalogItemService.getAllActive(
+                        authorizationHeader
+                )
         );
     }
 
 
     // ============================================================
-    // GET ACTIVE CATALOG ITEMS BY PROVIDER
+    // GET PROVIDER CATALOG
+    //
+    // ONLY WHEN PROVIDER IS APPROVED
     // ============================================================
 
     @GetMapping("/provider/{providerId}")
-    public ResponseEntity<List<CatalogItemResponse>> getByProvider(
+    public ResponseEntity<List<CatalogItemResponse>>
+    getByProvider(
 
             @PathVariable
-            @Positive
-            Long providerId) {
+            Long providerId,
+
+            @RequestHeader(
+                    value = "Authorization",
+                    required = false
+            )
+            String authorizationHeader) {
 
         return ResponseEntity.ok(
                 catalogItemService.getByProvider(
-                        providerId
+                        providerId,
+                        authorizationHeader
                 )
         );
     }
 
 
     // ============================================================
-    // GET ACTIVE CATALOG ITEMS BY CATEGORY
+    // GET CATEGORY CATALOG
+    //
+    // ONLY ACTIVE ITEMS FROM APPROVED PROVIDERS
     // ============================================================
 
     @GetMapping("/category/{category}")
-    public ResponseEntity<List<CatalogItemResponse>> getByCategory(
+    public ResponseEntity<List<CatalogItemResponse>>
+    getByCategory(
 
             @PathVariable
-            String category) {
+            String category,
+
+            @RequestHeader(
+                    value = "Authorization",
+                    required = false
+            )
+            String authorizationHeader) {
 
         return ResponseEntity.ok(
                 catalogItemService.getByCategory(
-                        category
+                        category,
+                        authorizationHeader
                 )
         );
     }
 
 
     // ============================================================
-    // PROVIDER - UPDATE OWN CATALOG ITEM
+    // UPDATE CATALOG ITEM
     // ============================================================
 
     @PutMapping("/{id}")
@@ -144,11 +172,7 @@ public class CatalogItemController {
 
             Authentication authentication,
 
-            @RequestHeader(HttpHeaders.AUTHORIZATION)
-            String authorizationHeader,
-
             @PathVariable
-            @Positive
             Long id,
 
             @Valid
@@ -156,9 +180,8 @@ public class CatalogItemController {
             CatalogItemRequest request) {
 
         Long providerId =
-                resolveProviderId(
-                        authentication,
-                        authorizationHeader
+                Long.valueOf(
+                        authentication.getName()
                 );
 
         return ResponseEntity.ok(
@@ -172,7 +195,7 @@ public class CatalogItemController {
 
 
     // ============================================================
-    // PROVIDER - DEACTIVATE OWN CATALOG ITEM
+    // DEACTIVATE CATALOG ITEM
     // ============================================================
 
     @DeleteMapping("/{id}")
@@ -181,17 +204,12 @@ public class CatalogItemController {
 
             Authentication authentication,
 
-            @RequestHeader(HttpHeaders.AUTHORIZATION)
-            String authorizationHeader,
-
             @PathVariable
-            @Positive
             Long id) {
 
         Long providerId =
-                resolveProviderId(
-                        authentication,
-                        authorizationHeader
+                Long.valueOf(
+                        authentication.getName()
                 );
 
         catalogItemService.deactivate(
@@ -202,29 +220,5 @@ public class CatalogItemController {
         return ResponseEntity
                 .noContent()
                 .build();
-    }
-
-
-    // ============================================================
-    // RESOLVE AUTHENTICATED USER → PROVIDER ID
-    // ============================================================
-
-    private Long resolveProviderId(
-
-            Authentication authentication,
-            String authorizationHeader) {
-
-        Long userId =
-                Long.valueOf(
-                        authentication.getName()
-                );
-
-        ProviderServiceClient.ProviderResponse provider =
-                providerServiceClient.getProviderByUserId(
-                        userId,
-                        authorizationHeader
-                );
-
-        return provider.id();
     }
 }

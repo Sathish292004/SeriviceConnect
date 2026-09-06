@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 
 public record UpdateProviderStatusRequest(
 
-        @NotBlank
+        @NotBlank(message = "Provider status is required")
         String status
 ) {
 }
