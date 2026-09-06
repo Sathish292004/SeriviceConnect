@@ -10,6 +10,7 @@ import com.serviceconnect.provider.repository.ProviderPhotoRepository;
 import com.serviceconnect.provider.repository.ProviderRepository;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class ProviderService {
 
     private final ProviderRepository providerRepository;
@@ -38,6 +40,11 @@ public class ProviderService {
             CreateProviderRequest request) {
 
         if (providerRepository.existsByUserId(userId)) {
+
+            log.warn(
+                    "Provider creation rejected: profile already exists, userId={}",
+                    userId
+            );
 
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
@@ -105,6 +112,13 @@ public class ProviderService {
                         provider
                 );
 
+        log.info(
+                "Provider profile created: providerId={}, userId={}, status={}",
+                savedProvider.getId(),
+                savedProvider.getUserId(),
+                savedProvider.getStatus()
+        );
+
         return toResponse(
                 savedProvider
         );
@@ -122,12 +136,18 @@ public class ProviderService {
         Provider provider =
                 providerRepository
                         .findById(providerId)
-                        .orElseThrow(() ->
-                                new ResponseStatusException(
-                                        HttpStatus.NOT_FOUND,
-                                        "Provider not found"
-                                )
-                        );
+                        .orElseThrow(() -> {
+
+                            log.warn(
+                                    "Provider not found: providerId={}",
+                                    providerId
+                            );
+
+                            return new ResponseStatusException(
+                                    HttpStatus.NOT_FOUND,
+                                    "Provider not found"
+                            );
+                        });
 
         return toResponse(
                 provider
@@ -146,12 +166,18 @@ public class ProviderService {
         Provider provider =
                 providerRepository
                         .findByUserId(userId)
-                        .orElseThrow(() ->
-                                new ResponseStatusException(
-                                        HttpStatus.NOT_FOUND,
-                                        "Provider profile not found"
-                                )
-                        );
+                        .orElseThrow(() -> {
+
+                            log.warn(
+                                    "Provider profile not found: userId={}",
+                                    userId
+                            );
+
+                            return new ResponseStatusException(
+                                    HttpStatus.NOT_FOUND,
+                                    "Provider profile not found"
+                            );
+                        });
 
         return toResponse(
                 provider
@@ -166,11 +192,19 @@ public class ProviderService {
     @Transactional(readOnly = true)
     public List<ProviderResponse> getAllProviders() {
 
-        return providerRepository
-                .findAll()
-                .stream()
-                .map(this::toResponse)
-                .toList();
+        List<ProviderResponse> providers =
+                providerRepository
+                        .findAll()
+                        .stream()
+                        .map(this::toResponse)
+                        .toList();
+
+        log.debug(
+                "All providers retrieved: count={}",
+                providers.size()
+        );
+
+        return providers;
     }
 
 
@@ -184,6 +218,10 @@ public class ProviderService {
 
         if (status == null
                 || status.isBlank()) {
+
+            log.warn(
+                    "Provider status query rejected: status is missing"
+            );
 
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -199,17 +237,31 @@ public class ProviderService {
                 && !normalizedStatus.equals("REJECTED")
                 && !normalizedStatus.equals("SUSPENDED")) {
 
+            log.warn(
+                    "Provider status query rejected: invalid status={}",
+                    normalizedStatus
+            );
+
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Invalid provider status"
             );
         }
 
-        return providerRepository
-                .findByStatus(normalizedStatus)
-                .stream()
-                .map(this::toResponse)
-                .toList();
+        List<ProviderResponse> providers =
+                providerRepository
+                        .findByStatus(normalizedStatus)
+                        .stream()
+                        .map(this::toResponse)
+                        .toList();
+
+        log.debug(
+                "Providers retrieved by status: status={}, count={}",
+                normalizedStatus,
+                providers.size()
+        );
+
+        return providers;
     }
 
 
@@ -230,12 +282,18 @@ public class ProviderService {
         Provider provider =
                 providerRepository
                         .findById(providerId)
-                        .orElseThrow(() ->
-                                new ResponseStatusException(
-                                        HttpStatus.NOT_FOUND,
-                                        "Provider not found"
-                                )
-                        );
+                        .orElseThrow(() -> {
+
+                            log.warn(
+                                    "Provider update failed: provider not found, providerId={}",
+                                    providerId
+                            );
+
+                            return new ResponseStatusException(
+                                    HttpStatus.NOT_FOUND,
+                                    "Provider not found"
+                            );
+                        });
 
         // --------------------------------------------------------
         // OWNERSHIP CHECK
@@ -369,9 +427,16 @@ public class ProviderService {
         //               PENDING
         // --------------------------------------------------------
 
-        if ("APPROVED".equalsIgnoreCase(
-                provider.getStatus()
-        ) && approvalSensitiveChange) {
+        String previousStatus =
+                provider.getStatus();
+
+        boolean movedBackToPending =
+                "APPROVED".equalsIgnoreCase(
+                        provider.getStatus()
+                )
+                        && approvalSensitiveChange;
+
+        if (movedBackToPending) {
 
             provider.setStatus(
                     "PENDING"
@@ -391,6 +456,27 @@ public class ProviderService {
                         provider
                 );
 
+        if (movedBackToPending) {
+
+            log.info(
+                    "Provider profile updated and returned for re-review: " +
+                            "providerId={}, userId={}, previousStatus={}, newStatus={}",
+                    updatedProvider.getId(),
+                    authenticatedUserId,
+                    previousStatus,
+                    updatedProvider.getStatus()
+            );
+
+        } else {
+
+            log.info(
+                    "Provider profile updated: providerId={}, userId={}, status={}",
+                    updatedProvider.getId(),
+                    authenticatedUserId,
+                    updatedProvider.getStatus()
+            );
+        }
+
         return toResponse(
                 updatedProvider
         );
@@ -408,15 +494,27 @@ public class ProviderService {
         Provider provider =
                 providerRepository
                         .findById(providerId)
-                        .orElseThrow(() ->
-                                new ResponseStatusException(
-                                        HttpStatus.NOT_FOUND,
-                                        "Provider not found"
-                                )
-                        );
+                        .orElseThrow(() -> {
+
+                            log.warn(
+                                    "Provider deletion failed: provider not found, providerId={}",
+                                    providerId
+                            );
+
+                            return new ResponseStatusException(
+                                    HttpStatus.NOT_FOUND,
+                                    "Provider not found"
+                            );
+                        });
 
         providerRepository.delete(
                 provider
+        );
+
+        log.info(
+                "Provider deleted: providerId={}, userId={}",
+                providerId,
+                provider.getUserId()
         );
     }
 
@@ -449,12 +547,18 @@ public class ProviderService {
         Provider provider =
                 providerRepository
                         .findById(providerId)
-                        .orElseThrow(() ->
-                                new ResponseStatusException(
-                                        HttpStatus.NOT_FOUND,
-                                        "Provider not found"
-                                )
-                        );
+                        .orElseThrow(() -> {
+
+                            log.warn(
+                                    "Provider status update failed: provider not found, providerId={}",
+                                    providerId
+                            );
+
+                            return new ResponseStatusException(
+                                    HttpStatus.NOT_FOUND,
+                                    "Provider not found"
+                            );
+                        });
 
         // --------------------------------------------------------
         // VALIDATE REQUESTED STATUS
@@ -462,6 +566,11 @@ public class ProviderService {
 
         if (status == null
                 || status.isBlank()) {
+
+            log.warn(
+                    "Provider status update rejected: status is missing, providerId={}",
+                    providerId
+            );
 
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -491,6 +600,13 @@ public class ProviderService {
                 && !newStatus.equals("REJECTED")
                 && !newStatus.equals("SUSPENDED")) {
 
+            log.warn(
+                    "Provider status update rejected: invalid target status, " +
+                            "providerId={}, requestedStatus={}",
+                    providerId,
+                    newStatus
+            );
+
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Status must be PENDING, APPROVED, REJECTED or SUSPENDED"
@@ -502,6 +618,13 @@ public class ProviderService {
         // --------------------------------------------------------
 
         if (currentStatus.equals(newStatus)) {
+
+            log.warn(
+                    "Provider status update rejected: already in status, " +
+                            "providerId={}, status={}",
+                    providerId,
+                    currentStatus
+            );
 
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -540,6 +663,14 @@ public class ProviderService {
 
         if (!validTransition) {
 
+            log.warn(
+                    "Provider status transition rejected: providerId={}, " +
+                            "currentStatus={}, targetStatus={}",
+                    providerId,
+                    currentStatus,
+                    newStatus
+            );
+
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Invalid provider status transition: "
@@ -566,6 +697,13 @@ public class ProviderService {
                         provider
                 );
 
+        log.info(
+                "Provider status changed: providerId={}, previousStatus={}, newStatus={}",
+                updatedProvider.getId(),
+                currentStatus,
+                updatedProvider.getStatus()
+        );
+
         return toResponse(
                 updatedProvider
         );
@@ -579,11 +717,19 @@ public class ProviderService {
     @Transactional(readOnly = true)
     public List<ProviderResponse> getApprovedProviders() {
 
-        return providerRepository
-                .findByStatus("APPROVED")
-                .stream()
-                .map(this::toResponse)
-                .toList();
+        List<ProviderResponse> providers =
+                providerRepository
+                        .findByStatus("APPROVED")
+                        .stream()
+                        .map(this::toResponse)
+                        .toList();
+
+        log.debug(
+                "Approved providers retrieved: count={}",
+                providers.size()
+        );
+
+        return providers;
     }
 
 
@@ -598,15 +744,28 @@ public class ProviderService {
         Provider provider =
                 providerRepository
                         .findById(providerId)
-                        .orElseThrow(() ->
-                                new ResponseStatusException(
-                                        HttpStatus.NOT_FOUND,
-                                        "Provider not found"
-                                )
-                        );
+                        .orElseThrow(() -> {
+
+                            log.warn(
+                                    "Approved provider lookup failed: provider not found, providerId={}",
+                                    providerId
+                            );
+
+                            return new ResponseStatusException(
+                                    HttpStatus.NOT_FOUND,
+                                    "Provider not found"
+                            );
+                        });
 
         if (!"APPROVED".equalsIgnoreCase(
                 provider.getStatus())) {
+
+            log.warn(
+                    "Approved provider lookup rejected: provider not available, " +
+                            "providerId={}, status={}",
+                    providerId,
+                    provider.getStatus()
+            );
 
             throw new ResponseStatusException(
                     HttpStatus.NOT_FOUND,
@@ -634,12 +793,18 @@ public class ProviderService {
         Provider provider =
                 providerRepository
                         .findById(providerId)
-                        .orElseThrow(() ->
-                                new ResponseStatusException(
-                                        HttpStatus.NOT_FOUND,
-                                        "Provider not found"
-                                )
-                        );
+                        .orElseThrow(() -> {
+
+                            log.warn(
+                                    "Provider location update failed: provider not found, providerId={}",
+                                    providerId
+                            );
+
+                            return new ResponseStatusException(
+                                    HttpStatus.NOT_FOUND,
+                                    "Provider not found"
+                            );
+                        });
 
         validateOwnership(
                 provider,
@@ -648,6 +813,11 @@ public class ProviderService {
 
         if (latitude == null
                 || longitude == null) {
+
+            log.warn(
+                    "Provider location update rejected: coordinates missing, providerId={}",
+                    providerId
+            );
 
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -658,6 +828,11 @@ public class ProviderService {
         if (latitude < -90.0
                 || latitude > 90.0) {
 
+            log.warn(
+                    "Provider location update rejected: invalid latitude, providerId={}",
+                    providerId
+            );
+
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Latitude must be between -90 and 90"
@@ -666,6 +841,11 @@ public class ProviderService {
 
         if (longitude < -180.0
                 || longitude > 180.0) {
+
+            log.warn(
+                    "Provider location update rejected: invalid longitude, providerId={}",
+                    providerId
+            );
 
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -690,6 +870,12 @@ public class ProviderService {
                         provider
                 );
 
+        log.info(
+                "Provider live location updated: providerId={}, userId={}",
+                updatedProvider.getId(),
+                authenticatedUserId
+        );
+
         return toResponse(
                 updatedProvider
         );
@@ -706,6 +892,12 @@ public class ProviderService {
 
         if (authenticatedUserId == null) {
 
+            log.warn(
+                    "Provider ownership validation failed: authenticated user missing, " +
+                            "providerId={}",
+                    provider.getId()
+            );
+
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "Authentication required"
@@ -714,6 +906,14 @@ public class ProviderService {
 
         if (!provider.getUserId()
                 .equals(authenticatedUserId)) {
+
+            log.warn(
+                    "Provider ownership validation failed: providerId={}, " +
+                            "authenticatedUserId={}, ownerUserId={}",
+                    provider.getId(),
+                    authenticatedUserId,
+                    provider.getUserId()
+            );
 
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,

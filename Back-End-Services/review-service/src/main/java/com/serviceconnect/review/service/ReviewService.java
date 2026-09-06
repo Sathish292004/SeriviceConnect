@@ -9,17 +9,21 @@ import com.serviceconnect.review.repository.ReviewRepository;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
-
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class ReviewService {
 
+    private static final String REVIEW_BOOKING_CONSTRAINT =
+            "uk_review_booking";
 
     private final ReviewRepository reviewRepository;
 
@@ -35,11 +39,24 @@ public class ReviewService {
     public ReviewResponse create(
             Long customerId,
             String authorizationHeader,
-            ReviewRequest request) {
+            ReviewRequest request
+    ) {
+
+        // --------------------------------------------------------
+        // 1. VALIDATE CUSTOMER
+        // --------------------------------------------------------
+
+        if (customerId == null) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Customer authentication is required"
+            );
+        }
 
 
         // --------------------------------------------------------
-        // 1. Prevent duplicate review
+        // 2. PREVENT DUPLICATE REVIEW
         // --------------------------------------------------------
 
         if (reviewRepository
@@ -54,7 +71,7 @@ public class ReviewService {
 
 
         // --------------------------------------------------------
-        // 2. Get booking from Booking Service
+        // 3. GET BOOKING FROM BOOKING SERVICE
         // --------------------------------------------------------
 
         BookingServiceClient.BookingResponse booking;
@@ -77,7 +94,7 @@ public class ReviewService {
 
 
         // --------------------------------------------------------
-        // 3. Verify booking exists
+        // 4. VERIFY BOOKING EXISTS
         // --------------------------------------------------------
 
         if (booking == null) {
@@ -90,10 +107,13 @@ public class ReviewService {
 
 
         // --------------------------------------------------------
-        // 4. Verify customer owns the booking
+        // 5. CUSTOMER MUST OWN BOOKING
         // --------------------------------------------------------
 
-        if (!booking.customerId().equals(customerId)) {
+        if (booking.customerId() == null
+                || !booking.customerId().equals(
+                customerId
+        )) {
 
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
@@ -103,11 +123,13 @@ public class ReviewService {
 
 
         // --------------------------------------------------------
-        // 5. Verify provider matches booking
+        // 6. PROVIDER MUST MATCH BOOKING
         // --------------------------------------------------------
 
-        if (!booking.providerId().equals(
-                request.providerId())) {
+        if (booking.providerId() == null
+                || !booking.providerId().equals(
+                request.providerId()
+        )) {
 
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -117,11 +139,12 @@ public class ReviewService {
 
 
         // --------------------------------------------------------
-        // 6. Review only completed bookings
+        // 7. ONLY COMPLETED BOOKINGS CAN BE REVIEWED
         // --------------------------------------------------------
 
         if (!"COMPLETED".equalsIgnoreCase(
-                booking.status())) {
+                booking.status()
+        )) {
 
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -131,7 +154,7 @@ public class ReviewService {
 
 
         // --------------------------------------------------------
-        // 7. Get provider from Provider Service
+        // 8. VERIFY PROVIDER WITH PROVIDER SERVICE
         // --------------------------------------------------------
 
         ProviderServiceClient.ProviderResponse provider;
@@ -154,7 +177,7 @@ public class ReviewService {
 
 
         // --------------------------------------------------------
-        // 8. Verify provider exists
+        // 9. VERIFY PROVIDER EXISTS
         // --------------------------------------------------------
 
         if (provider == null) {
@@ -167,24 +190,42 @@ public class ReviewService {
 
 
         // --------------------------------------------------------
-        // 9. Verify provider is approved
+        // 10. VERIFY PROVIDER ID
         // --------------------------------------------------------
 
-        if (!"APPROVED".equalsIgnoreCase(
-                provider.status())) {
+        if (provider.id() == null
+                || !provider.id().equals(
+                request.providerId()
+        )) {
 
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "Provider is not currently approved"
+                    "Invalid provider"
             );
         }
 
 
         // --------------------------------------------------------
-        // 10. Create review
+        // 11. PROVIDER MUST BE APPROVED
         // --------------------------------------------------------
 
-        Review review = new Review();
+        if (!"APPROVED".equalsIgnoreCase(
+                provider.status()
+        )) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Reviews can only be created for approved providers"
+            );
+        }
+
+
+        // --------------------------------------------------------
+        // 12. CREATE REVIEW
+        // --------------------------------------------------------
+
+        Review review =
+                new Review();
 
         review.setBookingId(
                 request.bookingId()
@@ -210,14 +251,39 @@ public class ReviewService {
 
 
         // --------------------------------------------------------
-        // 11. Save review
+        // 13. SAVE REVIEW
+        //
+        // Database unique constraint protects against
+        // concurrent duplicate-review creation.
         // --------------------------------------------------------
 
-        Review saved =
-                reviewRepository.save(review);
+        try {
 
+            Review saved =
+                    reviewRepository.saveAndFlush(
+                            review
+                    );
 
-        return toResponse(saved);
+            return toResponse(
+                    saved
+            );
+
+        } catch (
+                DataIntegrityViolationException exception
+        ) {
+
+            if (isBookingConstraintViolation(
+                    exception
+            )) {
+
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "Review already exists for this booking"
+                );
+            }
+
+            throw exception;
+        }
     }
 
 
@@ -225,12 +291,13 @@ public class ReviewService {
     // GET REVIEW BY ID
     // ============================================================
 
+    @Transactional(readOnly = true)
     public ReviewResponse getById(
-            Long id) {
+            Long id
+    ) {
 
         Review review =
-                reviewRepository
-                        .findById(id)
+                reviewRepository.findById(id)
                         .orElseThrow(() ->
                                 new ResponseStatusException(
                                         HttpStatus.NOT_FOUND,
@@ -240,7 +307,8 @@ public class ReviewService {
 
 
         if (!Boolean.TRUE.equals(
-                review.getActive())) {
+                review.getActive()
+        )) {
 
             throw new ResponseStatusException(
                     HttpStatus.NOT_FOUND,
@@ -249,7 +317,9 @@ public class ReviewService {
         }
 
 
-        return toResponse(review);
+        return toResponse(
+                review
+        );
     }
 
 
@@ -257,6 +327,7 @@ public class ReviewService {
     // GET ALL ACTIVE REVIEWS
     // ============================================================
 
+    @Transactional(readOnly = true)
     public List<ReviewResponse> getAllActive() {
 
         return reviewRepository
@@ -271,8 +342,10 @@ public class ReviewService {
     // GET PROVIDER REVIEWS
     // ============================================================
 
+    @Transactional(readOnly = true)
     public List<ReviewResponse> getByProvider(
-            Long providerId) {
+            Long providerId
+    ) {
 
         return reviewRepository
                 .findByProviderIdAndActiveTrue(
@@ -288,8 +361,10 @@ public class ReviewService {
     // GET CUSTOMER REVIEWS
     // ============================================================
 
+    @Transactional(readOnly = true)
     public List<ReviewResponse> getByCustomer(
-            Long customerId) {
+            Long customerId
+    ) {
 
         return reviewRepository
                 .findByCustomerIdAndActiveTrue(
@@ -305,8 +380,10 @@ public class ReviewService {
     // GET REVIEW BY BOOKING
     // ============================================================
 
+    @Transactional(readOnly = true)
     public ReviewResponse getByBooking(
-            Long bookingId) {
+            Long bookingId
+    ) {
 
         Review review =
                 reviewRepository
@@ -321,7 +398,9 @@ public class ReviewService {
                         );
 
 
-        return toResponse(review);
+        return toResponse(
+                review
+        );
     }
 
 
@@ -332,11 +411,20 @@ public class ReviewService {
     public ReviewResponse update(
             Long customerId,
             Long id,
-            ReviewRequest request) {
+            ReviewRequest request
+    ) {
+
+        if (customerId == null) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Customer authentication is required"
+            );
+        }
+
 
         Review review =
-                reviewRepository
-                        .findById(id)
+                reviewRepository.findById(id)
                         .orElseThrow(() ->
                                 new ResponseStatusException(
                                         HttpStatus.NOT_FOUND,
@@ -346,11 +434,13 @@ public class ReviewService {
 
 
         // --------------------------------------------------------
-        // Only owner can update
+        // 1. ONLY OWNER CAN UPDATE
         // --------------------------------------------------------
 
-        if (!review.getCustomerId()
-                .equals(customerId)) {
+        if (review.getCustomerId() == null
+                || !review.getCustomerId().equals(
+                customerId
+        )) {
 
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
@@ -360,11 +450,12 @@ public class ReviewService {
 
 
         // --------------------------------------------------------
-        // Review must be active
+        // 2. REVIEW MUST BE ACTIVE
         // --------------------------------------------------------
 
         if (!Boolean.TRUE.equals(
-                review.getActive())) {
+                review.getActive()
+        )) {
 
             throw new ResponseStatusException(
                     HttpStatus.NOT_FOUND,
@@ -374,8 +465,30 @@ public class ReviewService {
 
 
         // --------------------------------------------------------
-        // Booking and provider cannot change
+        // 3. BOOKING AND PROVIDER CANNOT CHANGE
         // --------------------------------------------------------
+
+        if (!review.getProviderId().equals(
+                request.providerId()
+        )) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Provider cannot be changed"
+            );
+        }
+
+
+        if (!review.getBookingId().equals(
+                request.bookingId()
+        )) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Booking cannot be changed"
+            );
+        }
+
 
         review.setRating(
                 request.rating()
@@ -387,10 +500,14 @@ public class ReviewService {
 
 
         Review updated =
-                reviewRepository.save(review);
+                reviewRepository.save(
+                        review
+                );
 
 
-        return toResponse(updated);
+        return toResponse(
+                updated
+        );
     }
 
 
@@ -400,11 +517,20 @@ public class ReviewService {
 
     public void deactivate(
             Long customerId,
-            Long id) {
+            Long id
+    ) {
+
+        if (customerId == null) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Customer authentication is required"
+            );
+        }
+
 
         Review review =
-                reviewRepository
-                        .findById(id)
+                reviewRepository.findById(id)
                         .orElseThrow(() ->
                                 new ResponseStatusException(
                                         HttpStatus.NOT_FOUND,
@@ -414,11 +540,13 @@ public class ReviewService {
 
 
         // --------------------------------------------------------
-        // Only owner can deactivate
+        // ONLY OWNER CAN DEACTIVATE
         // --------------------------------------------------------
 
-        if (!review.getCustomerId()
-                .equals(customerId)) {
+        if (review.getCustomerId() == null
+                || !review.getCustomerId().equals(
+                customerId
+        )) {
 
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
@@ -428,11 +556,12 @@ public class ReviewService {
 
 
         // --------------------------------------------------------
-        // Review must be active
+        // REVIEW MUST BE ACTIVE
         // --------------------------------------------------------
 
         if (!Boolean.TRUE.equals(
-                review.getActive())) {
+                review.getActive()
+        )) {
 
             throw new ResponseStatusException(
                     HttpStatus.NOT_FOUND,
@@ -443,16 +572,51 @@ public class ReviewService {
 
         review.setActive(false);
 
-        reviewRepository.save(review);
+        reviewRepository.save(
+                review
+        );
     }
 
 
     // ============================================================
-    // ENTITY → RESPONSE
+    // CHECK DATABASE UNIQUE CONSTRAINT
+    // ============================================================
+
+    private boolean isBookingConstraintViolation(
+            DataIntegrityViolationException exception
+    ) {
+
+        Throwable cause =
+                exception;
+
+        while (cause != null) {
+
+            String message =
+                    cause.getMessage();
+
+            if (message != null
+                    && message.contains(
+                    REVIEW_BOOKING_CONSTRAINT
+            )) {
+
+                return true;
+            }
+
+            cause =
+                    cause.getCause();
+        }
+
+        return false;
+    }
+
+
+    // ============================================================
+    // ENTITY -> RESPONSE
     // ============================================================
 
     private ReviewResponse toResponse(
-            Review review) {
+            Review review
+    ) {
 
         return new ReviewResponse(
                 review.getId(),

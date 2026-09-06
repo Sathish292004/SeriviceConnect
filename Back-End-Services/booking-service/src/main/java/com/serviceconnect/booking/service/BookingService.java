@@ -9,6 +9,7 @@ import com.serviceconnect.booking.entity.ServiceRequest;
 import com.serviceconnect.booking.repository.ServiceRequestRepository;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -22,6 +23,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class BookingService {
 
     // ============================================================
@@ -88,6 +90,13 @@ public class BookingService {
 
         if (!approvedProvider) {
 
+            log.warn(
+                    "Booking creation rejected: provider not approved, " +
+                            "customerId={}, providerId={}",
+                    customerId,
+                    request.providerId()
+            );
+
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Provider is not approved"
@@ -107,6 +116,13 @@ public class BookingService {
 
         if (catalogItem == null) {
 
+            log.warn(
+                    "Booking creation rejected: catalog item not found, " +
+                            "customerId={}, catalogItemId={}",
+                    customerId,
+                    request.catalogItemId()
+            );
+
             throw new ResponseStatusException(
                     HttpStatus.NOT_FOUND,
                     "Catalog item not found"
@@ -121,6 +137,13 @@ public class BookingService {
         if (!Boolean.TRUE.equals(
                 catalogItem.active()
         )) {
+
+            log.warn(
+                    "Booking creation rejected: catalog item inactive, " +
+                            "customerId={}, catalogItemId={}",
+                    customerId,
+                    request.catalogItemId()
+            );
 
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -137,6 +160,14 @@ public class BookingService {
                 catalogItem.providerId()
         )) {
 
+            log.warn(
+                    "Booking creation rejected: catalog/provider mismatch, " +
+                            "customerId={}, providerId={}, catalogItemId={}",
+                    customerId,
+                    request.providerId(),
+                    request.catalogItemId()
+            );
+
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Catalog item does not belong to selected provider"
@@ -151,6 +182,12 @@ public class BookingService {
         if (catalogItem.durationMinutes() == null
                 || catalogItem.durationMinutes() <= 0) {
 
+            log.error(
+                    "Booking creation failed: invalid catalog duration, " +
+                            "catalogItemId={}",
+                    request.catalogItemId()
+            );
+
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Catalog item has an invalid service duration"
@@ -164,6 +201,13 @@ public class BookingService {
 
         if (request.requestedStartAt() == null) {
 
+            log.warn(
+                    "Booking creation rejected: requested start time missing, " +
+                            "customerId={}, providerId={}",
+                    customerId,
+                    request.providerId()
+            );
+
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Requested start time is required"
@@ -174,6 +218,13 @@ public class BookingService {
         if (request.requestedStartAt().isBefore(
                 OffsetDateTime.now()
         )) {
+
+            log.warn(
+                    "Booking creation rejected: requested start time is in the past, " +
+                            "customerId={}, providerId={}",
+                    customerId,
+                    request.providerId()
+            );
 
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -206,6 +257,15 @@ public class BookingService {
                 );
 
         if (!providerAvailable) {
+
+            log.warn(
+                    "Booking creation rejected: provider unavailable, " +
+                            "customerId={}, providerId={}, startAt={}, endAt={}",
+                    customerId,
+                    request.providerId(),
+                    request.requestedStartAt(),
+                    requestedEndAt
+            );
 
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
@@ -247,6 +307,12 @@ public class BookingService {
         if (catalogItem.name() == null
                 || catalogItem.name().isBlank()) {
 
+            log.error(
+                    "Booking creation failed: catalog item name is invalid, " +
+                            "catalogItemId={}",
+                    request.catalogItemId()
+            );
+
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Catalog item name is invalid"
@@ -268,6 +334,12 @@ public class BookingService {
 
         if (catalogItem.price() == null
                 || catalogItem.price().signum() < 0) {
+
+            log.error(
+                    "Booking creation failed: catalog item price is invalid, " +
+                            "catalogItemId={}",
+                    request.catalogItemId()
+            );
 
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -354,6 +426,15 @@ public class BookingService {
 
         if (overlappingBooking) {
 
+            log.warn(
+                    "Booking creation rejected: provider time slot already booked, " +
+                            "customerId={}, providerId={}, startAt={}, endAt={}",
+                    customerId,
+                    request.providerId(),
+                    request.requestedStartAt(),
+                    requestedEndAt
+            );
+
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Provider time slot is already booked"
@@ -381,14 +462,47 @@ public class BookingService {
 
             if (isBookingOverlapViolation(exception)) {
 
+                log.warn(
+                        "Booking creation rejected by database overlap constraint, " +
+                                "customerId={}, providerId={}, startAt={}, endAt={}",
+                        customerId,
+                        request.providerId(),
+                        request.requestedStartAt(),
+                        requestedEndAt
+                );
+
                 throw new ResponseStatusException(
                         HttpStatus.CONFLICT,
                         "Provider time slot is already booked"
                 );
             }
 
+            log.error(
+                    "Booking creation failed due to database integrity violation, " +
+                            "customerId={}, providerId={}, catalogItemId={}",
+                    customerId,
+                    request.providerId(),
+                    request.catalogItemId(),
+                    exception
+            );
+
             throw exception;
         }
+
+
+        // --------------------------------------------------------
+        // SUCCESS LOG
+        // --------------------------------------------------------
+
+        log.info(
+                "Booking created: requestId={}, customerId={}, providerId={}, " +
+                        "catalogItemId={}, status={}",
+                savedRequest.getId(),
+                savedRequest.getCustomerId(),
+                savedRequest.getProviderId(),
+                savedRequest.getCatalogItemId(),
+                savedRequest.getStatus()
+        );
 
 
         // --------------------------------------------------------
@@ -440,6 +554,13 @@ public class BookingService {
                     userId
             )) {
 
+                log.warn(
+                        "Booking access denied: customer does not own request, " +
+                                "requestId={}, userId={}",
+                        requestId,
+                        userId
+                );
+
                 throw new ResponseStatusException(
                         HttpStatus.FORBIDDEN,
                         "You can only view your own requests"
@@ -463,6 +584,13 @@ public class BookingService {
                     userId
             )) {
 
+                log.warn(
+                        "Booking access denied: provider does not own request, " +
+                                "requestId={}, userId={}",
+                        requestId,
+                        userId
+                );
+
                 throw new ResponseStatusException(
                         HttpStatus.FORBIDDEN,
                         "You can only view requests assigned to you"
@@ -474,6 +602,14 @@ public class BookingService {
                     canProviderSeePhone(request)
             );
         }
+
+
+        log.warn(
+                "Booking access denied: invalid role, requestId={}, userId={}, role={}",
+                requestId,
+                userId,
+                role
+        );
 
 
         throw new ResponseStatusException(
@@ -599,6 +735,12 @@ public class BookingService {
         // UPDATE STATUS
         // --------------------------------------------------------
 
+        String previousStatus =
+                normalizeStatus(
+                        request.getStatus()
+                );
+
+
         updateStatus(
                 request,
                 STATUS_CANCELLED
@@ -609,6 +751,16 @@ public class BookingService {
                 serviceRequestRepository.save(
                         request
                 );
+
+
+        log.info(
+                "Booking cancelled: requestId={}, customerId={}, " +
+                        "previousStatus={}, newStatus={}",
+                updatedRequest.getId(),
+                customerId,
+                previousStatus,
+                updatedRequest.getStatus()
+        );
 
 
         return toResponse(
@@ -639,6 +791,12 @@ public class BookingService {
         );
 
 
+        String previousStatus =
+                normalizeStatus(
+                        request.getStatus()
+                );
+
+
         transition(
                 request,
                 STATUS_ACCEPTED
@@ -649,6 +807,16 @@ public class BookingService {
                 serviceRequestRepository.save(
                         request
                 );
+
+
+        log.info(
+                "Booking status changed: requestId={}, providerId={}, " +
+                        "previousStatus={}, newStatus={}",
+                updatedRequest.getId(),
+                providerId,
+                previousStatus,
+                updatedRequest.getStatus()
+        );
 
 
         return toResponse(
@@ -679,6 +847,12 @@ public class BookingService {
         );
 
 
+        String previousStatus =
+                normalizeStatus(
+                        request.getStatus()
+                );
+
+
         transition(
                 request,
                 STATUS_REJECTED
@@ -689,6 +863,16 @@ public class BookingService {
                 serviceRequestRepository.save(
                         request
                 );
+
+
+        log.info(
+                "Booking status changed: requestId={}, providerId={}, " +
+                        "previousStatus={}, newStatus={}",
+                updatedRequest.getId(),
+                providerId,
+                previousStatus,
+                updatedRequest.getStatus()
+        );
 
 
         return toResponse(
@@ -719,6 +903,12 @@ public class BookingService {
         );
 
 
+        String previousStatus =
+                normalizeStatus(
+                        request.getStatus()
+                );
+
+
         transition(
                 request,
                 STATUS_COMPLETED
@@ -729,6 +919,16 @@ public class BookingService {
                 serviceRequestRepository.save(
                         request
                 );
+
+
+        log.info(
+                "Booking status changed: requestId={}, providerId={}, " +
+                        "previousStatus={}, newStatus={}",
+                updatedRequest.getId(),
+                providerId,
+                previousStatus,
+                updatedRequest.getStatus()
+        );
 
 
         return toResponse(
@@ -951,12 +1151,18 @@ public class BookingService {
 
         return serviceRequestRepository
                 .findById(requestId)
-                .orElseThrow(() ->
-                        new ResponseStatusException(
-                                HttpStatus.NOT_FOUND,
-                                "Service request not found"
-                        )
-                );
+                .orElseThrow(() -> {
+
+                    log.warn(
+                            "Booking not found: requestId={}",
+                            requestId
+                    );
+
+                    return new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "Service request not found"
+                    );
+                });
     }
 
 
@@ -973,6 +1179,13 @@ public class BookingService {
                 || !request.getCustomerId().equals(
                 customerId
         )) {
+
+            log.warn(
+                    "Booking modification denied: customer ownership check failed, " +
+                            "requestId={}, customerId={}",
+                    request.getId(),
+                    customerId
+            );
 
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
@@ -995,6 +1208,13 @@ public class BookingService {
                 || !request.getProviderId().equals(
                 providerId
         )) {
+
+            log.warn(
+                    "Booking modification denied: provider ownership check failed, " +
+                            "requestId={}, providerId={}",
+                    request.getId(),
+                    providerId
+            );
 
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,

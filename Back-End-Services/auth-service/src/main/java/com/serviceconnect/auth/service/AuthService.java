@@ -1,9 +1,14 @@
 package com.serviceconnect.auth.service;
 
+import com.serviceconnect.auth.client.UserServiceClient;
 import com.serviceconnect.auth.dto.request.LoginRequest;
 import com.serviceconnect.auth.dto.request.RefreshTokenRequest;
 import com.serviceconnect.auth.dto.request.RegisterRequest;
-import com.serviceconnect.auth.dto.response.*;
+import com.serviceconnect.auth.dto.response.LoginResponse;
+import com.serviceconnect.auth.dto.response.RefreshTokenResponse;
+import com.serviceconnect.auth.dto.response.RegisterResponse;
+import com.serviceconnect.auth.dto.response.SecuritySettingsResponse;
+import com.serviceconnect.auth.dto.response.UserRoleResponse;
 import com.serviceconnect.auth.entity.User;
 import com.serviceconnect.auth.entity.VerificationChannel;
 import com.serviceconnect.auth.enums.Role;
@@ -12,8 +17,8 @@ import com.serviceconnect.auth.exception.PhoneAlreadyExistsException;
 import com.serviceconnect.auth.repository.UserRepository;
 
 import lombok.RequiredArgsConstructor;
-import com.serviceconnect.auth.client.UserServiceClient;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -26,14 +31,21 @@ import java.time.OffsetDateTime;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthService {
 
     private final UserServiceClient userServiceClient;
+
     private final UserRepository userRepository;
+
     private final PasswordEncoder passwordEncoder;
+
     private final AuthenticationManager authenticationManager;
+
     private final JwtTokenService jwtTokenService;
+
     private final RefreshTokenService refreshTokenService;
+
     private final VerificationTokenService verificationTokenService;
 
     // Email and phone verification
@@ -57,12 +69,14 @@ public class AuthService {
                 request.phone()
                         .trim();
 
+
         if (userRepository.existsByEmail(email)) {
 
             throw new EmailAlreadyExistsException(
                     "Email is already registered"
             );
         }
+
 
         if (userRepository.existsByPhone(phone)) {
 
@@ -71,8 +85,10 @@ public class AuthService {
             );
         }
 
+
         OffsetDateTime now =
                 OffsetDateTime.now();
+
 
         User user =
                 User.builder()
@@ -91,20 +107,37 @@ public class AuthService {
                         .updatedAt(now)
                         .build();
 
+
         User savedUser =
                 userRepository.save(user);
 
-        // Create verification token
+
+        log.info(
+                "Customer registration completed: userId={}, email={}",
+                savedUser.getId(),
+                savedUser.getEmail()
+        );
+
+
+        // ========================================================
+        // CREATE VERIFICATION TOKEN
+        // ========================================================
+
         String verificationToken =
                 verificationTokenService.createToken(
                         savedUser.getId()
                 );
 
-        // Generate OTP and send through Brevo
+
+        // ========================================================
+        // GENERATE OTP AND SEND THROUGH BREVO
+        // ========================================================
+
         verificationService.generateVerificationCode(
                 verificationToken,
                 VerificationChannel.EMAIL
         );
+
 
         return RegisterResponse.builder()
                 .id(savedUser.getId())
@@ -130,12 +163,14 @@ public class AuthService {
                         .trim()
                         .toLowerCase();
 
+
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         email,
                         request.password()
                 )
         );
+
 
         User user =
                 userRepository.findByEmail(email)
@@ -145,15 +180,25 @@ public class AuthService {
                                 )
                         );
 
+
         String accessToken =
                 jwtTokenService.generateAccessToken(
                         user
                 );
 
+
         String refreshToken =
                 refreshTokenService.createRefreshToken(
                         user
                 );
+
+
+        log.info(
+                "User login successful: userId={}, role={}",
+                user.getId(),
+                user.getRole()
+        );
+
 
         return LoginResponse.builder()
                 .id(user.getId())
@@ -180,15 +225,24 @@ public class AuthService {
                         request.refreshToken()
                 );
 
+
         String newAccessToken =
                 jwtTokenService.generateAccessToken(
                         user
                 );
 
+
         String newRefreshToken =
                 refreshTokenService.createRefreshToken(
                         user
                 );
+
+
+        log.info(
+                "Session refreshed successfully: userId={}",
+                user.getId()
+        );
+
 
         return RefreshTokenResponse.builder()
                 .accessToken(newAccessToken)
@@ -210,6 +264,11 @@ public class AuthService {
         refreshTokenService.revoke(
                 refreshToken
         );
+
+
+        log.info(
+                "User logout completed"
+        );
     }
 
 
@@ -222,6 +281,12 @@ public class AuthService {
             Long userId) {
 
         refreshTokenService.revokeAllForUser(
+                userId
+        );
+
+
+        log.info(
+                "All sessions revoked: userId={}",
                 userId
         );
     }
@@ -244,12 +309,14 @@ public class AuthService {
                 request.phone()
                         .trim();
 
+
         if (userRepository.existsByEmail(email)) {
 
             throw new EmailAlreadyExistsException(
                     "Email is already registered"
             );
         }
+
 
         if (userRepository.existsByPhone(phone)) {
 
@@ -258,8 +325,10 @@ public class AuthService {
             );
         }
 
+
         OffsetDateTime now =
                 OffsetDateTime.now();
+
 
         User user =
                 User.builder()
@@ -278,20 +347,37 @@ public class AuthService {
                         .updatedAt(now)
                         .build();
 
+
         User savedUser =
                 userRepository.save(user);
 
-        // Create verification token
+
+        log.info(
+                "Provider registration completed: userId={}, email={}",
+                savedUser.getId(),
+                savedUser.getEmail()
+        );
+
+
+        // ========================================================
+        // CREATE VERIFICATION TOKEN
+        // ========================================================
+
         String verificationToken =
                 verificationTokenService.createToken(
                         savedUser.getId()
                 );
 
-        // Generate OTP and send through Brevo
+
+        // ========================================================
+        // GENERATE OTP AND SEND THROUGH BREVO
+        // ========================================================
+
         verificationService.generateVerificationCode(
                 verificationToken,
                 VerificationChannel.EMAIL
         );
+
 
         return RegisterResponse.builder()
                 .id(savedUser.getId())
@@ -323,7 +409,11 @@ public class AuthService {
                                 )
                         );
 
-        // Verify current password
+
+        // ========================================================
+        // VERIFY CURRENT PASSWORD
+        // ========================================================
+
         if (!passwordEncoder.matches(
                 currentPassword,
                 user.getPassword()
@@ -335,7 +425,11 @@ public class AuthService {
             );
         }
 
-        // Prevent using the same password again
+
+        // ========================================================
+        // PREVENT REUSING CURRENT PASSWORD
+        // ========================================================
+
         if (passwordEncoder.matches(
                 newPassword,
                 user.getPassword()
@@ -347,21 +441,37 @@ public class AuthService {
             );
         }
 
-        // Hash the new password
+
+        // ========================================================
+        // HASH NEW PASSWORD
+        // ========================================================
+
         user.setPassword(
                 passwordEncoder.encode(
                         newPassword
                 )
         );
 
+
         user.setUpdatedAt(
                 OffsetDateTime.now()
         );
 
+
         userRepository.save(user);
 
-        // Invalidate all refresh tokens
+
+        // ========================================================
+        // INVALIDATE ALL REFRESH TOKENS
+        // ========================================================
+
         refreshTokenService.revokeAllForUser(
+                userId
+        );
+
+
+        log.info(
+                "Password changed and all sessions revoked: userId={}",
                 userId
         );
     }
@@ -382,6 +492,7 @@ public class AuthService {
                                         "User not found"
                                 )
                         );
+
 
         return UserRoleResponse.builder()
                 .id(user.getId())
@@ -407,6 +518,7 @@ public class AuthService {
                                 )
                         );
 
+
         return new SecuritySettingsResponse(
                 user.getId(),
                 user.getEmail(),
@@ -417,6 +529,7 @@ public class AuthService {
                 user.isPhoneVerified()
         );
     }
+
 
     // ============================================================
     // DELETE ACCOUNT
@@ -437,9 +550,10 @@ public class AuthService {
                                 )
                         );
 
-        // ------------------------------------------------------------
+
+        // ========================================================
         // VERIFY CURRENT PASSWORD
-        // ------------------------------------------------------------
+        // ========================================================
 
         if (!passwordEncoder.matches(
                 password,
@@ -452,27 +566,36 @@ public class AuthService {
             );
         }
 
-        // ------------------------------------------------------------
+
+        // ========================================================
         // DELETE USER PROFILE
-        // ------------------------------------------------------------
+        // ========================================================
 
         userServiceClient.deleteUserProfile(
                 userId,
                 authorizationHeader
         );
 
-        // ------------------------------------------------------------
+
+        // ========================================================
         // REVOKE ALL REFRESH TOKENS
-        // ------------------------------------------------------------
+        // ========================================================
 
         refreshTokenService.revokeAllForUser(
                 userId
         );
 
-        // ------------------------------------------------------------
+
+        // ========================================================
         // DELETE AUTH ACCOUNT
-        // ------------------------------------------------------------
+        // ========================================================
 
         userRepository.delete(user);
+
+
+        log.info(
+                "User account deleted: userId={}",
+                userId
+        );
     }
 }

@@ -2,7 +2,7 @@ package com.serviceconnect.review.config;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
-
+import com.serviceconnect.review.security.RestAccessDeniedHandler;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -34,10 +34,19 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(
-            HttpSecurity http) throws Exception {
+            HttpSecurity http,
+            RestAccessDeniedHandler accessDeniedHandler
+    ) throws Exception {
 
         http
                 .csrf(csrf -> csrf.disable())
+
+                .exceptionHandling(exception ->
+                        exception
+                                .accessDeniedHandler(
+                                        accessDeniedHandler
+                                )
+                )
 
                 .authorizeHttpRequests(auth -> auth
 

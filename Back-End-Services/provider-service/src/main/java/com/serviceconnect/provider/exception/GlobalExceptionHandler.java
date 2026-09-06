@@ -1,4 +1,4 @@
-package com.serviceconnect.user.exception;
+package com.serviceconnect.provider.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -6,14 +6,16 @@ import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-import org.springframework.security.access.AccessDeniedException;
-
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+
+import org.springframework.web.server.ResponseStatusException;
+
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -21,26 +23,20 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    // ============================================================
-    // USER NOT FOUND
-    // ============================================================
-
-    @ExceptionHandler(UserNotFoundException.class)
-    public ResponseEntity<ApiErrorResponse> handleUserNotFound(
-            UserNotFoundException exception,
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiErrorResponse> handleResponseStatus(
+            ResponseStatusException exception,
             HttpServletRequest request) {
 
+        HttpStatus status =
+                HttpStatus.valueOf(exception.getStatusCode().value());
+
         return buildResponse(
-                HttpStatus.NOT_FOUND,
-                exception.getMessage(),
+                status,
+                exception.getReason(),
                 request
         );
     }
-
-
-    // ============================================================
-    // VALIDATION ERROR
-    // ============================================================
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(
@@ -62,97 +58,17 @@ public class GlobalExceptionHandler {
         Map<String, Object> response =
                 new LinkedHashMap<>();
 
-        response.put(
-                "timestamp",
-                OffsetDateTime.now()
-        );
-
-        response.put(
-                "status",
-                HttpStatus.BAD_REQUEST.value()
-        );
-
-        response.put(
-                "error",
-                HttpStatus.BAD_REQUEST.getReasonPhrase()
-        );
-
-        response.put(
-                "message",
-                "Request validation failed"
-        );
-
-        response.put(
-                "errors",
-                errors
-        );
-
-        response.put(
-                "path",
-                request.getRequestURI()
-        );
+        response.put("timestamp", OffsetDateTime.now());
+        response.put("status", HttpStatus.BAD_REQUEST.value());
+        response.put("error", HttpStatus.BAD_REQUEST.getReasonPhrase());
+        response.put("message", "Request validation failed");
+        response.put("errors", errors);
+        response.put("path", request.getRequestURI());
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(response);
     }
-
-
-    // ============================================================
-    // DUPLICATE EMAIL
-    // ============================================================
-
-    @ExceptionHandler(DuplicateEmailException.class)
-    public ResponseEntity<ApiErrorResponse> handleDuplicateEmail(
-            DuplicateEmailException exception,
-            HttpServletRequest request) {
-
-        return buildResponse(
-                HttpStatus.CONFLICT,
-                exception.getMessage(),
-                request
-        );
-    }
-
-
-    // ============================================================
-    // USER PROFILE ALREADY EXISTS
-    // ============================================================
-
-    @ExceptionHandler(UserProfileAlreadyExistsException.class)
-    public ResponseEntity<ApiErrorResponse>
-    handleUserProfileAlreadyExists(
-            UserProfileAlreadyExistsException exception,
-            HttpServletRequest request) {
-
-        return buildResponse(
-                HttpStatus.CONFLICT,
-                exception.getMessage(),
-                request
-        );
-    }
-
-
-    // ============================================================
-    // ACCESS DENIED
-    // ============================================================
-
-    @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<ApiErrorResponse> handleAccessDenied(
-            AccessDeniedException exception,
-            HttpServletRequest request) {
-
-        return buildResponse(
-                HttpStatus.FORBIDDEN,
-                "You do not have permission to access this resource",
-                request
-        );
-    }
-
-
-    // ============================================================
-    // CONSTRAINT VIOLATION
-    // ============================================================
 
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ApiErrorResponse> handleConstraintViolation(
@@ -166,11 +82,6 @@ public class GlobalExceptionHandler {
         );
     }
 
-
-    // ============================================================
-    // MALFORMED JSON / INVALID REQUEST BODY
-    // ============================================================
-
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiErrorResponse> handleUnreadableMessage(
             HttpMessageNotReadableException exception,
@@ -183,10 +94,18 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ApiErrorResponse> handleMissingHeader(
+            MissingRequestHeaderException exception,
+            HttpServletRequest request) {
 
-    // ============================================================
-    // HTTP METHOD NOT SUPPORTED
-    // ============================================================
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                "Required request header is missing: "
+                        + exception.getHeaderName(),
+                request
+        );
+    }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ApiErrorResponse> handleMethodNotSupported(
@@ -200,14 +119,8 @@ public class GlobalExceptionHandler {
         );
     }
 
-
-    // ============================================================
-    // MEDIA TYPE NOT SUPPORTED
-    // ============================================================
-
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
-    public ResponseEntity<ApiErrorResponse>
-    handleMediaTypeNotSupported(
+    public ResponseEntity<ApiErrorResponse> handleMediaTypeNotSupported(
             HttpMediaTypeNotSupportedException exception,
             HttpServletRequest request) {
 
@@ -217,11 +130,6 @@ public class GlobalExceptionHandler {
                 request
         );
     }
-
-
-    // ============================================================
-    // ILLEGAL ARGUMENT
-    // ============================================================
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiErrorResponse> handleIllegalArgument(
@@ -235,11 +143,6 @@ public class GlobalExceptionHandler {
         );
     }
 
-
-    // ============================================================
-    // ILLEGAL STATE
-    // ============================================================
-
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ApiErrorResponse> handleIllegalState(
             IllegalStateException exception,
@@ -252,11 +155,6 @@ public class GlobalExceptionHandler {
         );
     }
 
-
-    // ============================================================
-    // GENERIC EXCEPTION
-    // ============================================================
-
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleException(
             Exception exception,
@@ -268,11 +166,6 @@ public class GlobalExceptionHandler {
                 request
         );
     }
-
-
-    // ============================================================
-    // BUILD RESPONSE
-    // ============================================================
 
     private ResponseEntity<ApiErrorResponse> buildResponse(
             HttpStatus status,

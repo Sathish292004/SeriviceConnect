@@ -8,6 +8,7 @@ import com.serviceconnect.catalog.entity.CatalogItem;
 import com.serviceconnect.catalog.repository.CatalogItemRepository;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -19,6 +20,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CatalogItemService {
 
     private final CatalogItemRepository catalogItemRepository;
@@ -81,6 +83,14 @@ public class CatalogItemService {
                 catalogItemRepository.save(item);
 
 
+        log.info(
+                "Catalog item created: itemId={}, providerId={}, active={}",
+                saved.getId(),
+                saved.getProviderId(),
+                saved.getActive()
+        );
+
+
         return toResponse(saved);
     }
 
@@ -95,16 +105,27 @@ public class CatalogItemService {
 
         CatalogItem item =
                 catalogItemRepository.findById(id)
-                        .orElseThrow(() ->
-                                new ResponseStatusException(
-                                        HttpStatus.NOT_FOUND,
-                                        "Catalog item not found"
-                                )
-                        );
+                        .orElseThrow(() -> {
+
+                            log.warn(
+                                    "Catalog item not found: itemId={}",
+                                    id
+                            );
+
+                            return new ResponseStatusException(
+                                    HttpStatus.NOT_FOUND,
+                                    "Catalog item not found"
+                            );
+                        });
 
 
         if (!Boolean.TRUE.equals(
                 item.getActive())) {
+
+            log.warn(
+                    "Catalog item unavailable: itemId={}, reason=inactive",
+                    id
+            );
 
             throw new ResponseStatusException(
                     HttpStatus.NOT_FOUND,
@@ -152,6 +173,10 @@ public class CatalogItemService {
 
 
         if (approvedProviderIds.isEmpty()) {
+
+            log.info(
+                    "Catalog search returned no results: no approved providers"
+            );
 
             return new PageResponse<>(
                     List.of(),
@@ -242,6 +267,17 @@ public class CatalogItemService {
         }
 
 
+        log.debug(
+                "Catalog search completed: searchProvided={}, categoryProvided={}, " +
+                        "page={}, size={}, totalElements={}",
+                hasSearch,
+                hasCategory,
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements()
+        );
+
+
         return toPageResponse(page);
     }
 
@@ -267,6 +303,16 @@ public class CatalogItemService {
                                 providerId,
                                 pageable
                         );
+
+
+        log.debug(
+                "Provider catalog retrieved: providerId={}, page={}, " +
+                        "size={}, totalElements={}",
+                providerId,
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements()
+        );
 
 
         return toPageResponse(page);
@@ -296,12 +342,19 @@ public class CatalogItemService {
 
         CatalogItem item =
                 catalogItemRepository.findById(id)
-                        .orElseThrow(() ->
-                                new ResponseStatusException(
-                                        HttpStatus.NOT_FOUND,
-                                        "Catalog item not found"
-                                )
-                        );
+                        .orElseThrow(() -> {
+
+                            log.warn(
+                                    "Catalog item update failed: item not found, itemId={}, providerId={}",
+                                    id,
+                                    providerId
+                            );
+
+                            return new ResponseStatusException(
+                                    HttpStatus.NOT_FOUND,
+                                    "Catalog item not found"
+                            );
+                        });
 
 
         validateOwnership(
@@ -335,6 +388,13 @@ public class CatalogItemService {
                 catalogItemRepository.save(item);
 
 
+        log.info(
+                "Catalog item updated: itemId={}, providerId={}",
+                updated.getId(),
+                updated.getProviderId()
+        );
+
+
         return toResponse(updated);
     }
 
@@ -357,12 +417,20 @@ public class CatalogItemService {
 
         CatalogItem item =
                 catalogItemRepository.findById(id)
-                        .orElseThrow(() ->
-                                new ResponseStatusException(
-                                        HttpStatus.NOT_FOUND,
-                                        "Catalog item not found"
-                                )
-                        );
+                        .orElseThrow(() -> {
+
+                            log.warn(
+                                    "Catalog item deactivation failed: item not found, " +
+                                            "itemId={}, providerId={}",
+                                    id,
+                                    providerId
+                            );
+
+                            return new ResponseStatusException(
+                                    HttpStatus.NOT_FOUND,
+                                    "Catalog item not found"
+                            );
+                        });
 
 
         validateOwnership(
@@ -374,6 +442,13 @@ public class CatalogItemService {
         if (!Boolean.TRUE.equals(
                 item.getActive())) {
 
+            log.warn(
+                    "Catalog item deactivation rejected: item already inactive, " +
+                            "itemId={}, providerId={}",
+                    id,
+                    providerId
+            );
+
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Catalog item is already inactive"
@@ -384,6 +459,13 @@ public class CatalogItemService {
         item.setActive(false);
 
         catalogItemRepository.save(item);
+
+
+        log.info(
+                "Catalog item deactivated: itemId={}, providerId={}",
+                item.getId(),
+                providerId
+        );
     }
 
 
@@ -405,12 +487,20 @@ public class CatalogItemService {
 
         CatalogItem item =
                 catalogItemRepository.findById(id)
-                        .orElseThrow(() ->
-                                new ResponseStatusException(
-                                        HttpStatus.NOT_FOUND,
-                                        "Catalog item not found"
-                                )
-                        );
+                        .orElseThrow(() -> {
+
+                            log.warn(
+                                    "Catalog item activation failed: item not found, " +
+                                            "itemId={}, providerId={}",
+                                    id,
+                                    providerId
+                            );
+
+                            return new ResponseStatusException(
+                                    HttpStatus.NOT_FOUND,
+                                    "Catalog item not found"
+                            );
+                        });
 
 
         validateOwnership(
@@ -421,6 +511,13 @@ public class CatalogItemService {
 
         if (Boolean.TRUE.equals(
                 item.getActive())) {
+
+            log.warn(
+                    "Catalog item activation rejected: item already active, " +
+                            "itemId={}, providerId={}",
+                    id,
+                    providerId
+            );
 
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -436,6 +533,13 @@ public class CatalogItemService {
                 catalogItemRepository.save(item);
 
 
+        log.info(
+                "Catalog item activated: itemId={}, providerId={}",
+                updated.getId(),
+                providerId
+        );
+
+
         return toResponse(updated);
     }
 
@@ -449,6 +553,10 @@ public class CatalogItemService {
             String authorizationHeader) {
 
         if (authenticatedUserId == null) {
+
+            log.warn(
+                    "Catalog operation rejected: authenticated user ID is missing"
+            );
 
             throw new ResponseStatusException(
                     HttpStatus.UNAUTHORIZED,
@@ -467,6 +575,12 @@ public class CatalogItemService {
         if (provider == null
                 || provider.id() == null) {
 
+            log.warn(
+                    "Catalog operation rejected: provider profile not found, " +
+                            "userId={}",
+                    authenticatedUserId
+            );
+
             throw new ResponseStatusException(
                     HttpStatus.NOT_FOUND,
                     "Provider profile not found"
@@ -477,6 +591,14 @@ public class CatalogItemService {
         if (provider.userId() == null
                 || !provider.userId()
                 .equals(authenticatedUserId)) {
+
+            log.error(
+                    "Provider ownership verification failed: " +
+                            "authenticatedUserId={}, providerId={}, providerUserId={}",
+                    authenticatedUserId,
+                    provider.id(),
+                    provider.userId()
+            );
 
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
@@ -499,6 +621,14 @@ public class CatalogItemService {
 
         if (!item.getProviderId()
                 .equals(providerId)) {
+
+            log.warn(
+                    "Catalog item ownership validation failed: " +
+                            "itemId={}, requestedProviderId={}, ownerProviderId={}",
+                    item.getId(),
+                    providerId,
+                    item.getProviderId()
+            );
 
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
@@ -544,15 +674,10 @@ public class CatalogItemService {
                         .toList(),
 
                 page.getNumber(),
-
                 page.getSize(),
-
                 page.getTotalElements(),
-
                 page.getTotalPages(),
-
                 page.isFirst(),
-
                 page.isLast()
         );
     }

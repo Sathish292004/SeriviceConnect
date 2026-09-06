@@ -1,7 +1,7 @@
-package com.serviceconnect.admin.security;
+package com.serviceconnect.user.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.serviceconnect.admin.exception.ApiErrorResponse;
+import com.serviceconnect.user.exception.ApiErrorResponse;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

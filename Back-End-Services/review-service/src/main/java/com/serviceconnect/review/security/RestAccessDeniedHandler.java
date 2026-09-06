@@ -1,12 +1,10 @@
-package com.serviceconnect.admin.security;
+package com.serviceconnect.review.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.serviceconnect.admin.exception.ApiErrorResponse;
+import com.serviceconnect.review.exception.ApiErrorResponse;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-
-import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
@@ -17,11 +15,16 @@ import java.io.IOException;
 import java.time.OffsetDateTime;
 
 @Component
-@RequiredArgsConstructor
-public class CustomAccessDeniedHandler
+public class RestAccessDeniedHandler
         implements AccessDeniedHandler {
 
     private final ObjectMapper objectMapper;
+
+    public RestAccessDeniedHandler(
+            ObjectMapper objectMapper
+    ) {
+        this.objectMapper = objectMapper;
+    }
 
     @Override
     public void handle(

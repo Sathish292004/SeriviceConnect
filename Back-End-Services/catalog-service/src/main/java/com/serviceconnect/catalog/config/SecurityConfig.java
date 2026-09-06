@@ -2,7 +2,7 @@ package com.serviceconnect.catalog.config;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
-
+import com.serviceconnect.catalog.security.RestAccessDeniedHandler;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -71,7 +71,9 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(
-            HttpSecurity http) throws Exception {
+            HttpSecurity http,
+            RestAccessDeniedHandler accessDeniedHandler
+    ) throws Exception {
 
         http
 
@@ -91,6 +93,17 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(
                                 SessionCreationPolicy.STATELESS
                         )
+                )
+
+                // ------------------------------------------------
+                // SECURITY EXCEPTION HANDLING
+                // ------------------------------------------------
+
+                .exceptionHandling(exception ->
+                        exception
+                                .accessDeniedHandler(
+                                        accessDeniedHandler
+                                )
                 )
 
                 // ------------------------------------------------

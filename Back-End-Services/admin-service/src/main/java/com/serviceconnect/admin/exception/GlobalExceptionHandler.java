@@ -1,48 +1,115 @@
 package com.serviceconnect.admin.exception;
 
-import com.serviceconnect.admin.dto.response.ErrorResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
+
+import org.springframework.security.access.AccessDeniedException;
+
+import java.time.OffsetDateTime;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    // ============================================================
+    // 404 - RESOURCE NOT FOUND
+    // ============================================================
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleNoResourceFound(
+            NoResourceFoundException exception,
+            HttpServletRequest request
+    ) {
+
+        return buildResponse(
+                HttpStatus.NOT_FOUND,
+                "The requested resource was not found",
+                request
+        );
+    }
+
+
+    @ExceptionHandler(NoHandlerFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleNoHandlerFound(
+            NoHandlerFoundException exception,
+            HttpServletRequest request
+    ) {
+
+        return buildResponse(
+                HttpStatus.NOT_FOUND,
+                "The requested endpoint was not found",
+                request
+        );
+    }
+
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiErrorResponse> handleResponseStatus(
+            ResponseStatusException exception,
+            HttpServletRequest request
+    ) {
+
+        HttpStatus status =
+                HttpStatus.valueOf(exception.getStatusCode().value());
+
+        String message =
+                exception.getReason() != null
+                        ? exception.getReason()
+                        : status.getReasonPhrase();
+
+        return buildResponse(
+                status,
+                message,
+                request
+        );
+    }
+
 
     // ============================================================
     // 400 - BAD REQUEST
     // ============================================================
 
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ErrorResponse> handleIllegalArgument(
-            IllegalArgumentException exception) {
+    public ResponseEntity<ApiErrorResponse> handleIllegalArgument(
+            IllegalArgumentException exception,
+            HttpServletRequest request
+    ) {
 
-        return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
-                .body(
-                        new ErrorResponse(
-                                400,
-                                exception.getMessage()
-                        )
-                );
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                safeMessage(
+                        exception.getMessage(),
+                        "Invalid request"
+                ),
+                request
+        );
     }
 
 
     @ExceptionHandler(IllegalStateException.class)
-    public ResponseEntity<ErrorResponse> handleIllegalState(
-            IllegalStateException exception) {
+    public ResponseEntity<ApiErrorResponse> handleIllegalState(
+            IllegalStateException exception,
+            HttpServletRequest request
+    ) {
 
-        return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
-                .body(
-                        new ErrorResponse(
-                                400,
-                                exception.getMessage()
-                        )
-                );
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                safeMessage(
+                        exception.getMessage(),
+                        "Invalid request state"
+                ),
+                request
+        );
     }
 
 
@@ -51,8 +118,10 @@ public class GlobalExceptionHandler {
     // ============================================================
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponse> handleValidation(
-            MethodArgumentNotValidException exception) {
+    public ResponseEntity<ApiErrorResponse> handleValidation(
+            MethodArgumentNotValidException exception,
+            HttpServletRequest request
+    ) {
 
         String message =
                 exception.getBindingResult()
@@ -66,29 +135,28 @@ public class GlobalExceptionHandler {
                         )
                         .orElse("Validation failed");
 
-        return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
-                .body(
-                        new ErrorResponse(
-                                400,
-                                message
-                        )
-                );
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                message,
+                request
+        );
     }
 
 
     @ExceptionHandler(ConstraintViolationException.class)
-    public ResponseEntity<ErrorResponse> handleConstraintViolation(
-            ConstraintViolationException exception) {
+    public ResponseEntity<ApiErrorResponse> handleConstraintViolation(
+            ConstraintViolationException exception,
+            HttpServletRequest request
+    ) {
 
-        return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
-                .body(
-                        new ErrorResponse(
-                                400,
-                                exception.getMessage()
-                        )
-                );
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                safeMessage(
+                        exception.getMessage(),
+                        "Validation failed"
+                ),
+                request
+        );
     }
 
 
@@ -97,17 +165,52 @@ public class GlobalExceptionHandler {
     // ============================================================
 
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<ErrorResponse> handleAccessDenied(
-            AccessDeniedException exception) {
+    public ResponseEntity<ApiErrorResponse> handleAccessDenied(
+            AccessDeniedException exception,
+            HttpServletRequest request
+    ) {
 
-        return ResponseEntity
-                .status(HttpStatus.FORBIDDEN)
-                .body(
-                        new ErrorResponse(
-                                403,
-                                "Access denied"
-                        )
-                );
+        return buildResponse(
+                HttpStatus.FORBIDDEN,
+                "You do not have permission to access this resource",
+                request
+        );
+    }
+
+
+    // ============================================================
+    // 405 - METHOD NOT ALLOWED
+    // ============================================================
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiErrorResponse> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException exception,
+            HttpServletRequest request
+    ) {
+
+        return buildResponse(
+                HttpStatus.METHOD_NOT_ALLOWED,
+                "HTTP method is not supported for this endpoint",
+                request
+        );
+    }
+
+
+    // ============================================================
+    // 415 - UNSUPPORTED MEDIA TYPE
+    // ============================================================
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ApiErrorResponse> handleMediaTypeNotSupported(
+            HttpMediaTypeNotSupportedException exception,
+            HttpServletRequest request
+    ) {
+
+        return buildResponse(
+                HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                "Unsupported media type",
+                request
+        );
     }
 
 
@@ -116,16 +219,56 @@ public class GlobalExceptionHandler {
     // ============================================================
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleUnexpectedException(
-            Exception exception) {
+    public ResponseEntity<ApiErrorResponse> handleUnexpectedException(
+            Exception exception,
+            HttpServletRequest request
+    ) {
+
+        return buildResponse(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "An unexpected error occurred",
+                request
+        );
+    }
+
+
+    // ============================================================
+    // RESPONSE BUILDER
+    // ============================================================
+
+    private ResponseEntity<ApiErrorResponse> buildResponse(
+            HttpStatus status,
+            String message,
+            HttpServletRequest request
+    ) {
+
+        ApiErrorResponse response =
+                new ApiErrorResponse(
+                        OffsetDateTime.now(),
+                        status.value(),
+                        status.getReasonPhrase(),
+                        message,
+                        request.getRequestURI()
+                );
 
         return ResponseEntity
-                .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(
-                        new ErrorResponse(
-                                500,
-                                "An unexpected error occurred"
-                        )
-                );
+                .status(status)
+                .body(response);
+    }
+
+
+    // ============================================================
+    // SAFE MESSAGE
+    // ============================================================
+
+    private String safeMessage(
+            String message,
+            String fallback
+    ) {
+
+        return message == null
+                || message.isBlank()
+                ? fallback
+                : message;
     }
 }

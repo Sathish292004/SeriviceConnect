@@ -13,12 +13,14 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import com.serviceconnect.user.security.CustomAccessDeniedHandler;
 
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
+    private final CustomAccessDeniedHandler customAccessDeniedHandler;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
 
@@ -36,9 +38,13 @@ public class SecurityConfig {
                 )
 
                 .exceptionHandling(exception ->
-                        exception.authenticationEntryPoint(
-                                customAuthenticationEntryPoint
-                        )
+                        exception
+                                .authenticationEntryPoint(
+                                        customAuthenticationEntryPoint
+                                )
+                                .accessDeniedHandler(
+                                        customAccessDeniedHandler
+                                )
                 )
 
                 .authorizeHttpRequests(auth -> auth

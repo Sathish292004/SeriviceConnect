@@ -2,34 +2,49 @@ package com.serviceconnect.booking.exception;
 
 import jakarta.validation.ConstraintViolationException;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-
 
     // ============================================================
     // RESPONSE STATUS EXCEPTION
     // ============================================================
 
     @ExceptionHandler(ResponseStatusException.class)
-    public ResponseEntity<Map<String, Object>> handleResponseStatus(
-            ResponseStatusException exception) {
+    public ResponseEntity<ApiErrorResponse> handleResponseStatus(
+            ResponseStatusException exception,
+            HttpServletRequest request) {
+
+        HttpStatus status =
+                HttpStatus.valueOf(
+                        exception.getStatusCode().value()
+                );
 
         return buildResponse(
-                exception.getStatusCode().value(),
-                exception.getReason()
+                status,
+                exception.getReason(),
+                request
         );
     }
 
@@ -40,7 +55,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(
-            MethodArgumentNotValidException exception) {
+            MethodArgumentNotValidException exception,
+            HttpServletRequest request) {
 
         Map<String, String> errors =
                 new LinkedHashMap<>();
@@ -69,12 +85,22 @@ public class GlobalExceptionHandler {
 
         response.put(
                 "error",
-                "Validation failed"
+                HttpStatus.BAD_REQUEST.getReasonPhrase()
+        );
+
+        response.put(
+                "message",
+                "Request validation failed"
         );
 
         response.put(
                 "errors",
                 errors
+        );
+
+        response.put(
+                "path",
+                request.getRequestURI()
         );
 
         return ResponseEntity
@@ -88,12 +114,83 @@ public class GlobalExceptionHandler {
     // ============================================================
 
     @ExceptionHandler(ConstraintViolationException.class)
-    public ResponseEntity<Map<String, Object>> handleConstraintViolation(
-            ConstraintViolationException exception) {
+    public ResponseEntity<ApiErrorResponse> handleConstraintViolation(
+            ConstraintViolationException exception,
+            HttpServletRequest request) {
 
         return buildResponse(
-                HttpStatus.BAD_REQUEST.value(),
-                exception.getMessage()
+                HttpStatus.BAD_REQUEST,
+                "Request validation failed",
+                request
+        );
+    }
+
+
+    // ============================================================
+    // MALFORMED JSON / INVALID REQUEST BODY
+    // ============================================================
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiErrorResponse> handleUnreadableMessage(
+            HttpMessageNotReadableException exception,
+            HttpServletRequest request) {
+
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                "Malformed or invalid request body",
+                request
+        );
+    }
+
+
+    // ============================================================
+    // MISSING REQUEST HEADER
+    // ============================================================
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ApiErrorResponse> handleMissingHeader(
+            MissingRequestHeaderException exception,
+            HttpServletRequest request) {
+
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                "Required request header is missing: "
+                        + exception.getHeaderName(),
+                request
+        );
+    }
+
+
+    // ============================================================
+    // HTTP METHOD NOT SUPPORTED
+    // ============================================================
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiErrorResponse> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException exception,
+            HttpServletRequest request) {
+
+        return buildResponse(
+                HttpStatus.METHOD_NOT_ALLOWED,
+                "HTTP method is not supported for this endpoint",
+                request
+        );
+    }
+
+
+    // ============================================================
+    // MEDIA TYPE NOT SUPPORTED
+    // ============================================================
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ApiErrorResponse> handleMediaTypeNotSupported(
+            HttpMediaTypeNotSupportedException exception,
+            HttpServletRequest request) {
+
+        return buildResponse(
+                HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                "Request content type is not supported",
+                request
         );
     }
 
@@ -103,12 +200,14 @@ public class GlobalExceptionHandler {
     // ============================================================
 
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<Map<String, Object>> handleIllegalArgument(
-            IllegalArgumentException exception) {
+    public ResponseEntity<ApiErrorResponse> handleIllegalArgument(
+            IllegalArgumentException exception,
+            HttpServletRequest request) {
 
         return buildResponse(
-                HttpStatus.BAD_REQUEST.value(),
-                exception.getMessage()
+                HttpStatus.BAD_REQUEST,
+                exception.getMessage(),
+                request
         );
     }
 
@@ -118,12 +217,14 @@ public class GlobalExceptionHandler {
     // ============================================================
 
     @ExceptionHandler(IllegalStateException.class)
-    public ResponseEntity<Map<String, Object>> handleIllegalState(
-            IllegalStateException exception) {
+    public ResponseEntity<ApiErrorResponse> handleIllegalState(
+            IllegalStateException exception,
+            HttpServletRequest request) {
 
         return buildResponse(
-                HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                exception.getMessage()
+                HttpStatus.BAD_REQUEST,
+                exception.getMessage(),
+                request
         );
     }
 
@@ -133,12 +234,14 @@ public class GlobalExceptionHandler {
     // ============================================================
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> handleException(
-            Exception exception) {
+    public ResponseEntity<ApiErrorResponse> handleException(
+            Exception exception,
+            HttpServletRequest request) {
 
         return buildResponse(
-                HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                "An unexpected error occurred"
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "An unexpected error occurred",
+                request
         );
     }
 
@@ -147,30 +250,73 @@ public class GlobalExceptionHandler {
     // BUILD RESPONSE
     // ============================================================
 
-    private ResponseEntity<Map<String, Object>> buildResponse(
-            int status,
-            String message) {
+    private ResponseEntity<ApiErrorResponse> buildResponse(
+            HttpStatus status,
+            String message,
+            HttpServletRequest request) {
 
-        Map<String, Object> response =
-                new LinkedHashMap<>();
-
-        response.put(
-                "timestamp",
-                OffsetDateTime.now()
-        );
-
-        response.put(
-                "status",
-                status
-        );
-
-        response.put(
-                "message",
-                message
-        );
+        ApiErrorResponse response =
+                new ApiErrorResponse(
+                        OffsetDateTime.now(),
+                        status.value(),
+                        status.getReasonPhrase(),
+                        message == null
+                                ? status.getReasonPhrase()
+                                : message,
+                        request.getRequestURI()
+                );
 
         return ResponseEntity
                 .status(status)
                 .body(response);
+    }
+
+    // ============================================================
+// 404 - RESOURCE NOT FOUND
+// ============================================================
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleNoResourceFound(
+            NoResourceFoundException exception,
+            HttpServletRequest request
+    ) {
+
+        return buildResponse(
+                HttpStatus.NOT_FOUND,
+                "The requested resource was not found",
+                request
+        );
+    }
+
+
+    @ExceptionHandler(NoHandlerFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleNoHandlerFound(
+            NoHandlerFoundException exception,
+            HttpServletRequest request
+    ) {
+
+        return buildResponse(
+                HttpStatus.NOT_FOUND,
+                "The requested endpoint was not found",
+                request
+        );
+    }
+
+
+    // ============================================================
+    // 403 - FORBIDDEN
+    // ============================================================
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccessDenied(
+            AccessDeniedException exception,
+            HttpServletRequest request
+    ) {
+
+        return buildResponse(
+                HttpStatus.FORBIDDEN,
+                "You do not have permission to access this resource",
+                request
+        );
     }
 }

@@ -15,7 +15,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
-
+import com.serviceconnect.provider.security.RestAccessDeniedHandler;
 import org.springframework.security.web.SecurityFilterChain;
 
 import javax.crypto.SecretKey;
@@ -118,7 +118,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            JwtAuthenticationConverter jwtAuthenticationConverter
+            JwtAuthenticationConverter jwtAuthenticationConverter,
+            RestAccessDeniedHandler accessDeniedHandler
     ) throws Exception {
 
         http
@@ -132,14 +133,26 @@ public class SecurityConfig {
                 )
 
 
-                // ------------------------------------------------
-                // STATELESS SESSION
-                // ------------------------------------------------
+            // ------------------------------------------------
+            // STATELESS SESSION
+            // ------------------------------------------------
 
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(
                                 SessionCreationPolicy.STATELESS
                         )
+                )
+
+
+            // ------------------------------------------------
+            // SECURITY EXCEPTION HANDLING
+            // ------------------------------------------------
+
+                .exceptionHandling(exception ->
+                        exception
+                                .accessDeniedHandler(
+                                        accessDeniedHandler
+                                )
                 )
 
 
@@ -149,7 +162,6 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth ->
                         auth
-
                                 .requestMatchers(
                                         "/actuator/health",
                                         "/actuator/health/**"
@@ -164,7 +176,6 @@ public class SecurityConfig {
                                 .anyRequest()
                                 .authenticated()
                 )
-
 
                 // ------------------------------------------------
                 // JWT RESOURCE SERVER
