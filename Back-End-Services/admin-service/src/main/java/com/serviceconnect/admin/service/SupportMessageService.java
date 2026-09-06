@@ -10,7 +10,10 @@ import com.serviceconnect.admin.entity.TicketStatus;
 import com.serviceconnect.admin.mapper.AdminMapper;
 import com.serviceconnect.admin.repository.SupportMessageRepository;
 import com.serviceconnect.admin.repository.SupportTicketRepository;
+
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -21,11 +24,15 @@ import java.time.OffsetDateTime;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class SupportMessageService {
 
     private final SupportMessageRepository messageRepository;
+
     private final SupportTicketRepository ticketRepository;
+
     private final AdminMapper adminMapper;
+
 
     /**
      * CUSTOMER sends a message to their own ticket.
@@ -39,13 +46,25 @@ public class SupportMessageService {
                 ticketRepository.findByIdAndCustomerId(
                         ticketId,
                         customerId
-                ).orElseThrow(() ->
-                        new IllegalArgumentException(
-                                "Ticket not found"
-                        )
-                );
+                ).orElseThrow(() -> {
 
-        validateTicketCanReceiveMessage(ticket);
+                    log.warn(
+                            "Customer message rejected: ticket not found or not owned, " +
+                                    "customerId={}, ticketId={}",
+                            customerId,
+                            ticketId
+                    );
+
+                    return new IllegalArgumentException(
+                            "Ticket not found"
+                    );
+                });
+
+
+        validateTicketCanReceiveMessage(
+                ticket
+        );
+
 
         SupportMessage message =
                 createMessage(
@@ -55,10 +74,27 @@ public class SupportMessageService {
                         request
                 );
 
+
+        SupportMessage savedMessage =
+                messageRepository.save(
+                        message
+                );
+
+
+        log.info(
+                "Support message created: messageId={}, ticketId={}, " +
+                        "senderType=CUSTOMER, senderId={}",
+                savedMessage.getId(),
+                ticketId,
+                customerId
+        );
+
+
         return adminMapper.toSupportMessageResponse(
-                messageRepository.save(message)
+                savedMessage
         );
     }
+
 
     /**
      * SUPPORT_AGENT sends a message only to an assigned ticket.
@@ -72,13 +108,25 @@ public class SupportMessageService {
                 ticketRepository.findByIdAndAssignedAgentId(
                         ticketId,
                         agentId
-                ).orElseThrow(() ->
-                        new IllegalArgumentException(
-                                "Ticket not found"
-                        )
-                );
+                ).orElseThrow(() -> {
 
-        validateTicketCanReceiveMessage(ticket);
+                    log.warn(
+                            "Agent message rejected: ticket not found or not assigned, " +
+                                    "agentId={}, ticketId={}",
+                            agentId,
+                            ticketId
+                    );
+
+                    return new IllegalArgumentException(
+                            "Ticket not found"
+                    );
+                });
+
+
+        validateTicketCanReceiveMessage(
+                ticket
+        );
+
 
         SupportMessage message =
                 createMessage(
@@ -88,10 +136,27 @@ public class SupportMessageService {
                         request
                 );
 
+
+        SupportMessage savedMessage =
+                messageRepository.save(
+                        message
+                );
+
+
+        log.info(
+                "Support message created: messageId={}, ticketId={}, " +
+                        "senderType=SUPPORT_AGENT, senderId={}",
+                savedMessage.getId(),
+                ticketId,
+                agentId
+        );
+
+
         return adminMapper.toSupportMessageResponse(
-                messageRepository.save(message)
+                savedMessage
         );
     }
+
 
     /**
      * ADMIN can send a message to any ticket.
@@ -103,13 +168,25 @@ public class SupportMessageService {
 
         SupportTicket ticket =
                 ticketRepository.findById(ticketId)
-                        .orElseThrow(() ->
-                                new IllegalArgumentException(
-                                        "Ticket not found"
-                                )
-                        );
+                        .orElseThrow(() -> {
 
-        validateTicketCanReceiveMessage(ticket);
+                            log.warn(
+                                    "Admin message rejected: ticket not found, " +
+                                            "adminId={}, ticketId={}",
+                                    adminId,
+                                    ticketId
+                            );
+
+                            return new IllegalArgumentException(
+                                    "Ticket not found"
+                            );
+                        });
+
+
+        validateTicketCanReceiveMessage(
+                ticket
+        );
+
 
         SupportMessage message =
                 createMessage(
@@ -119,10 +196,27 @@ public class SupportMessageService {
                         request
                 );
 
+
+        SupportMessage savedMessage =
+                messageRepository.save(
+                        message
+                );
+
+
+        log.info(
+                "Support message created: messageId={}, ticketId={}, " +
+                        "senderType=ADMIN, senderId={}",
+                savedMessage.getId(),
+                ticketId,
+                adminId
+        );
+
+
         return adminMapper.toSupportMessageResponse(
-                messageRepository.save(message)
+                savedMessage
         );
     }
+
 
     /**
      * CUSTOMER can read only their own ticket messages.
@@ -138,14 +232,28 @@ public class SupportMessageService {
                 ticketId
         );
 
+
         Page<SupportMessage> page =
                 messageRepository.findByTicketIdOrderByCreatedAtAsc(
                         ticketId,
                         pageable
                 );
 
+
+        log.debug(
+                "Customer support messages retrieved: customerId={}, " +
+                        "ticketId={}, page={}, size={}, totalElements={}",
+                customerId,
+                ticketId,
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements()
+        );
+
+
         return toPageResponse(page);
     }
+
 
     /**
      * SUPPORT_AGENT can read messages only from assigned tickets.
@@ -161,14 +269,28 @@ public class SupportMessageService {
                 ticketId
         );
 
+
         Page<SupportMessage> page =
                 messageRepository.findByTicketIdOrderByCreatedAtAsc(
                         ticketId,
                         pageable
                 );
 
+
+        log.debug(
+                "Agent support messages retrieved: agentId={}, " +
+                        "ticketId={}, page={}, size={}, totalElements={}",
+                agentId,
+                ticketId,
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements()
+        );
+
+
         return toPageResponse(page);
     }
+
 
     /**
      * ADMIN can read any ticket conversation.
@@ -180,14 +302,27 @@ public class SupportMessageService {
 
         verifyTicket(ticketId);
 
+
         Page<SupportMessage> page =
                 messageRepository.findByTicketIdOrderByCreatedAtAsc(
                         ticketId,
                         pageable
                 );
 
+
+        log.debug(
+                "Admin support messages retrieved: ticketId={}, " +
+                        "page={}, size={}, totalElements={}",
+                ticketId,
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements()
+        );
+
+
         return toPageResponse(page);
     }
+
 
     private SupportMessage createMessage(
             SupportTicket ticket,
@@ -199,22 +334,35 @@ public class SupportMessageService {
                 adminMapper.toSupportMessageEntity(request);
 
         message.setTicket(ticket);
+
         message.setSenderId(senderId);
+
         message.setSenderType(senderType);
-        message.setCreatedAt(OffsetDateTime.now());
+
+        message.setCreatedAt(
+                OffsetDateTime.now()
+        );
 
         return message;
     }
+
 
     private void validateTicketCanReceiveMessage(
             SupportTicket ticket) {
 
         if (ticket.getStatus() == TicketStatus.CLOSED) {
+
+            log.warn(
+                    "Support message rejected: ticket is closed, ticketId={}",
+                    ticket.getId()
+            );
+
             throw new IllegalStateException(
                     "Closed tickets cannot receive new messages"
             );
         }
     }
+
 
     private void verifyCustomerTicket(
             Long customerId,
@@ -223,12 +371,21 @@ public class SupportMessageService {
         ticketRepository.findByIdAndCustomerId(
                 ticketId,
                 customerId
-        ).orElseThrow(() ->
-                new IllegalArgumentException(
-                        "Ticket not found"
-                )
-        );
+        ).orElseThrow(() -> {
+
+            log.warn(
+                    "Customer message access denied: ticket not found or not owned, " +
+                            "customerId={}, ticketId={}",
+                    customerId,
+                    ticketId
+            );
+
+            return new IllegalArgumentException(
+                    "Ticket not found"
+            );
+        });
     }
+
 
     private void verifyAgentTicket(
             Long agentId,
@@ -237,22 +394,39 @@ public class SupportMessageService {
         ticketRepository.findByIdAndAssignedAgentId(
                 ticketId,
                 agentId
-        ).orElseThrow(() ->
-                new IllegalArgumentException(
-                        "Ticket not found"
-                )
-        );
+        ).orElseThrow(() -> {
+
+            log.warn(
+                    "Agent message access denied: ticket not found or not assigned, " +
+                            "agentId={}, ticketId={}",
+                    agentId,
+                    ticketId
+            );
+
+            return new IllegalArgumentException(
+                    "Ticket not found"
+            );
+        });
     }
 
-    private void verifyTicket(Long ticketId) {
+
+    private void verifyTicket(
+            Long ticketId) {
 
         ticketRepository.findById(ticketId)
-                .orElseThrow(() ->
-                        new IllegalArgumentException(
-                                "Ticket not found"
-                        )
-                );
+                .orElseThrow(() -> {
+
+                    log.warn(
+                            "Admin message lookup failed: ticket not found, ticketId={}",
+                            ticketId
+                    );
+
+                    return new IllegalArgumentException(
+                            "Ticket not found"
+                    );
+                });
     }
+
 
     private PageResponse<SupportMessageResponse> toPageResponse(
             Page<SupportMessage> page) {
@@ -262,11 +436,17 @@ public class SupportMessageService {
                         .stream()
                         .map(adminMapper::toSupportMessageResponse)
                         .toList(),
+
                 page.getNumber(),
+
                 page.getSize(),
+
                 page.getTotalElements(),
+
                 page.getTotalPages(),
+
                 page.isFirst(),
+
                 page.isLast()
         );
     }

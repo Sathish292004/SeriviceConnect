@@ -14,6 +14,7 @@ import com.serviceconnect.admin.repository.SupportTicketRepository;
 import jakarta.servlet.http.HttpServletRequest;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
@@ -27,6 +28,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class TicketService {
 
     private final AuditLogService auditLogService;
@@ -92,6 +94,13 @@ public class TicketService {
                 httpRequest
         );
 
+        log.info(
+                "Support ticket created: ticketId={}, customerId={}, status={}",
+                savedTicket.getId(),
+                customerId,
+                savedTicket.getStatus()
+        );
+
         return adminMapper.toTicketResponse(
                 savedTicket
         );
@@ -110,11 +119,19 @@ public class TicketService {
                 ticketRepository.findByIdAndCustomerId(
                         ticketId,
                         customerId
-                ).orElseThrow(() ->
-                        new IllegalArgumentException(
-                                "Ticket not found"
-                        )
-                );
+                ).orElseThrow(() -> {
+
+                    log.warn(
+                            "Customer ticket lookup failed: ticket not found or not owned, " +
+                                    "customerId={}, ticketId={}",
+                            customerId,
+                            ticketId
+                    );
+
+                    return new IllegalArgumentException(
+                            "Ticket not found"
+                    );
+                });
 
         return adminMapper.toTicketResponse(
                 ticket
@@ -135,6 +152,15 @@ public class TicketService {
                         customerId,
                         pageable
                 );
+
+        log.debug(
+                "Customer tickets retrieved: customerId={}, page={}, " +
+                        "size={}, totalElements={}",
+                customerId,
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements()
+        );
 
         return toPageResponse(
                 page
@@ -158,11 +184,19 @@ public class TicketService {
                 ticketRepository.findByIdAndAssignedAgentId(
                         ticketId,
                         agentId
-                ).orElseThrow(() ->
-                        new IllegalArgumentException(
-                                "Ticket not found"
-                        )
-                );
+                ).orElseThrow(() -> {
+
+                    log.warn(
+                            "Agent ticket lookup failed: ticket not found or not assigned, " +
+                                    "agentId={}, ticketId={}",
+                            agentId,
+                            ticketId
+                    );
+
+                    return new IllegalArgumentException(
+                            "Ticket not found"
+                    );
+                });
 
         return adminMapper.toTicketResponse(
                 ticket
@@ -183,11 +217,19 @@ public class TicketService {
                 ticketRepository.findByIdAndAssignedAgentId(
                         ticketId,
                         agentId
-                ).orElseThrow(() ->
-                        new IllegalArgumentException(
-                                "Ticket not found"
-                        )
-                );
+                ).orElseThrow(() -> {
+
+                    log.warn(
+                            "Agent ticket update failed: ticket not found or not assigned, " +
+                                    "agentId={}, ticketId={}",
+                            agentId,
+                            ticketId
+                    );
+
+                    return new IllegalArgumentException(
+                            "Ticket not found"
+                    );
+                });
 
         TicketStatus previousStatus =
                 ticket.getStatus();
@@ -225,6 +267,15 @@ public class TicketService {
                 httpRequest
         );
 
+        log.info(
+                "Support ticket updated by agent: ticketId={}, agentId={}, " +
+                        "previousStatus={}, newStatus={}",
+                updated.getId(),
+                agentId,
+                previousStatus,
+                updated.getStatus()
+        );
+
         return adminMapper.toTicketResponse(
                 updated
         );
@@ -244,6 +295,15 @@ public class TicketService {
                         agentId,
                         pageable
                 );
+
+        log.debug(
+                "Agent tickets retrieved: agentId={}, page={}, " +
+                        "size={}, totalElements={}",
+                agentId,
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements()
+        );
 
         return toPageResponse(
                 page
@@ -319,6 +379,15 @@ public class TicketService {
                 httpRequest
         );
 
+        log.info(
+                "Support ticket updated by admin: ticketId={}, adminId={}, " +
+                        "previousStatus={}, newStatus={}",
+                updated.getId(),
+                adminId,
+                previousStatus,
+                updated.getStatus()
+        );
+
         return adminMapper.toTicketResponse(
                 updated
         );
@@ -344,6 +413,13 @@ public class TicketService {
 
         if (ticket.getStatus() == TicketStatus.CLOSED) {
 
+            log.warn(
+                    "Ticket assignment rejected: ticket is closed, " +
+                            "ticketId={}, adminId={}",
+                    ticketId,
+                    adminId
+            );
+
             throw new IllegalStateException(
                     "Closed tickets cannot be assigned"
             );
@@ -355,6 +431,13 @@ public class TicketService {
         // ========================================================
 
         if (request.agentId() == null) {
+
+            log.warn(
+                    "Ticket assignment rejected: agent ID missing, " +
+                            "ticketId={}, adminId={}",
+                    ticketId,
+                    adminId
+            );
 
             throw new IllegalArgumentException(
                     "Agent ID is required"
@@ -376,10 +459,26 @@ public class TicketService {
         // VERIFY SUPPORT AGENT
         // ========================================================
 
-        authServiceClient.validateSupportAgent(
-                request.agentId(),
-                authorizationHeader
-        );
+        try {
+
+            authServiceClient.validateSupportAgent(
+                    request.agentId(),
+                    authorizationHeader
+            );
+
+        } catch (Exception exception) {
+
+            log.error(
+                    "Ticket assignment failed: support agent validation failed, " +
+                            "ticketId={}, adminId={}, agentId={}",
+                    ticketId,
+                    adminId,
+                    request.agentId(),
+                    exception
+            );
+
+            throw exception;
+        }
 
 
         // ========================================================
@@ -463,6 +562,16 @@ public class TicketService {
         );
 
 
+        log.info(
+                "Support ticket assignment completed: ticketId={}, " +
+                        "adminId={}, previousAgentId={}, newAgentId={}",
+                updated.getId(),
+                adminId,
+                previousAgentId,
+                request.agentId()
+        );
+
+
         // ========================================================
         // RESPONSE
         // ========================================================
@@ -485,6 +594,13 @@ public class TicketService {
                         pageable
                 );
 
+        log.debug(
+                "All support tickets retrieved: page={}, size={}, totalElements={}",
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements()
+        );
+
         return toPageResponse(
                 page
         );
@@ -501,6 +617,10 @@ public class TicketService {
 
         if (status == null) {
 
+            log.warn(
+                    "Ticket status filtering rejected: status is missing"
+            );
+
             throw new IllegalArgumentException(
                     "Ticket status is required"
             );
@@ -511,6 +631,15 @@ public class TicketService {
                         status,
                         pageable
                 );
+
+        log.debug(
+                "Support tickets retrieved by status: status={}, page={}, " +
+                        "size={}, totalElements={}",
+                status,
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements()
+        );
 
         return toPageResponse(
                 page
@@ -665,6 +794,16 @@ public class TicketService {
                         + currentStatus,
                 httpRequest
         );
+
+        log.info(
+                "Ticket status changed: ticketId={}, actorId={}, actorRole={}, " +
+                        "previousStatus={}, newStatus={}",
+                ticket.getId(),
+                actorId,
+                actorRole,
+                previousStatus,
+                currentStatus
+        );
     }
 
 
@@ -691,12 +830,20 @@ public class TicketService {
 
         if (current == null) {
 
+            log.error(
+                    "Ticket status validation failed: current status is null"
+            );
+
             throw new IllegalStateException(
                     "Ticket has no current status"
             );
         }
 
         if (next == null) {
+
+            log.warn(
+                    "Ticket status validation failed: next status is null"
+            );
 
             throw new IllegalArgumentException(
                     "Ticket status is required"
@@ -710,6 +857,13 @@ public class TicketService {
 
         if (current == TicketStatus.CLOSED) {
 
+            log.warn(
+                    "Ticket status transition rejected: closed ticket, " +
+                            "currentStatus={}, requestedStatus={}",
+                    current,
+                    next
+            );
+
             throw new IllegalStateException(
                     "Closed tickets cannot be modified"
             );
@@ -718,6 +872,12 @@ public class TicketService {
         if (current == TicketStatus.RESOLVED
                 && next != TicketStatus.CLOSED) {
 
+            log.warn(
+                    "Ticket status transition rejected: resolved ticket " +
+                            "can only be closed, requestedStatus={}",
+                    next
+            );
+
             throw new IllegalStateException(
                     "Resolved ticket can only be closed"
             );
@@ -725,6 +885,10 @@ public class TicketService {
 
         if (current == TicketStatus.OPEN
                 && next == TicketStatus.CLOSED) {
+
+            log.warn(
+                    "Ticket status transition rejected: OPEN -> CLOSED"
+            );
 
             throw new IllegalStateException(
                     "Open ticket must be resolved before closing"
@@ -742,6 +906,10 @@ public class TicketService {
 
         if (ticketId == null) {
 
+            log.warn(
+                    "Ticket lookup rejected: ticket ID is missing"
+            );
+
             throw new IllegalArgumentException(
                     "Ticket ID is required"
             );
@@ -749,11 +917,17 @@ public class TicketService {
 
         return ticketRepository.findById(
                 ticketId
-        ).orElseThrow(() ->
-                new IllegalArgumentException(
-                        "Ticket not found"
-                )
-        );
+        ).orElseThrow(() -> {
+
+            log.warn(
+                    "Ticket not found: ticketId={}",
+                    ticketId
+            );
+
+            return new IllegalArgumentException(
+                    "Ticket not found"
+            );
+        });
     }
 
 
@@ -773,6 +947,11 @@ public class TicketService {
 
         } catch (
                 OptimisticLockingFailureException exception) {
+
+            log.warn(
+                    "Concurrent ticket modification detected: ticketId={}",
+                    ticket.getId()
+            );
 
             throw new IllegalStateException(
                     "Ticket was modified by another request. "

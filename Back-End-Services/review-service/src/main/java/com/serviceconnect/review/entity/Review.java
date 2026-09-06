@@ -1,6 +1,16 @@
 package com.serviceconnect.review.entity;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -14,6 +24,20 @@ import java.time.LocalDateTime;
                 @UniqueConstraint(
                         name = "uk_review_booking",
                         columnNames = "booking_id"
+                )
+        },
+        indexes = {
+                @Index(
+                        name = "idx_review_provider_active",
+                        columnList = "provider_id, active"
+                ),
+                @Index(
+                        name = "idx_review_customer_active",
+                        columnList = "customer_id, active"
+                ),
+                @Index(
+                        name = "idx_review_active",
+                        columnList = "active"
                 )
         }
 )
@@ -35,7 +59,10 @@ public class Review {
     // BOOKING
     // ============================================================
 
-    @Column(name = "booking_id", nullable = false)
+    @Column(
+            name = "booking_id",
+            nullable = false
+    )
     private Long bookingId;
 
 
@@ -43,7 +70,10 @@ public class Review {
     // CUSTOMER
     // ============================================================
 
-    @Column(name = "customer_id", nullable = false)
+    @Column(
+            name = "customer_id",
+            nullable = false
+    )
     private Long customerId;
 
 
@@ -51,7 +81,10 @@ public class Review {
     // PROVIDER
     // ============================================================
 
-    @Column(name = "provider_id", nullable = false)
+    @Column(
+            name = "provider_id",
+            nullable = false
+    )
     private Long providerId;
 
 
@@ -59,7 +92,9 @@ public class Review {
     // RATING
     // ============================================================
 
-    @Column(nullable = false)
+    @Column(
+            nullable = false
+    )
     private Integer rating;
 
 
@@ -67,7 +102,9 @@ public class Review {
     // COMMENT
     // ============================================================
 
-    @Column(length = 1000)
+    @Column(
+            length = 1000
+    )
     private String comment;
 
 
@@ -75,7 +112,9 @@ public class Review {
     // ACTIVE
     // ============================================================
 
-    @Column(nullable = false)
+    @Column(
+            nullable = false
+    )
     private Boolean active = true;
 
 
@@ -83,7 +122,10 @@ public class Review {
     // CREATED AT
     // ============================================================
 
-    @Column(name = "created_at", nullable = false)
+    @Column(
+            name = "created_at",
+            nullable = false
+    )
     private LocalDateTime createdAt;
 
 
@@ -91,7 +133,10 @@ public class Review {
     // UPDATED AT
     // ============================================================
 
-    @Column(name = "updated_at", nullable = false)
+    @Column(
+            name = "updated_at",
+            nullable = false
+    )
     private LocalDateTime updatedAt;
 
 
@@ -102,7 +147,8 @@ public class Review {
     @PrePersist
     protected void onCreate() {
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now =
+                LocalDateTime.now();
 
         createdAt = now;
         updatedAt = now;
@@ -120,6 +166,7 @@ public class Review {
     @PreUpdate
     protected void onUpdate() {
 
-        updatedAt = LocalDateTime.now();
+        updatedAt =
+                LocalDateTime.now();
     }
 }

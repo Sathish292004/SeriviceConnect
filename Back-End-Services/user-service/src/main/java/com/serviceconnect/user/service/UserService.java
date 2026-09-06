@@ -12,6 +12,7 @@ import com.serviceconnect.user.mapper.UserMapper;
 import com.serviceconnect.user.repository.UserRepository;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class UserService {
 
     private final UserRepository userRepository;
@@ -40,6 +42,11 @@ public class UserService {
             UserRequest request) {
 
         if (userRepository.existsById(userId)) {
+
+            log.warn(
+                    "User profile creation rejected: profile already exists, userId={}",
+                    userId
+            );
 
             throw new UserProfileAlreadyExistsException(
                     "User profile already exists"
@@ -62,6 +69,13 @@ public class UserService {
         User savedUser =
                 userRepository.save(user);
 
+
+        log.info(
+                "User profile created: userId={}",
+                savedUser.getId()
+        );
+
+
         return userMapper.toResponse(
                 savedUser
         );
@@ -78,11 +92,17 @@ public class UserService {
 
         User user =
                 userRepository.findById(id)
-                        .orElseThrow(() ->
-                                new UserNotFoundException(
-                                        "User not found"
-                                )
-                        );
+                        .orElseThrow(() -> {
+
+                            log.warn(
+                                    "User not found: userId={}",
+                                    id
+                            );
+
+                            return new UserNotFoundException(
+                                    "User not found"
+                            );
+                        });
 
         return userMapper.toResponse(
                 user
@@ -97,11 +117,21 @@ public class UserService {
     @Transactional(readOnly = true)
     public List<UserResponse> getAllUsers() {
 
-        return userRepository
-                .findAll()
-                .stream()
-                .map(userMapper::toResponse)
-                .toList();
+        List<UserResponse> users =
+                userRepository
+                        .findAll()
+                        .stream()
+                        .map(userMapper::toResponse)
+                        .toList();
+
+
+        log.debug(
+                "All users retrieved: count={}",
+                users.size()
+        );
+
+
+        return users;
     }
 
 
@@ -116,11 +146,18 @@ public class UserService {
 
         User user =
                 userRepository.findById(userId)
-                        .orElseThrow(() ->
-                                new UserNotFoundException(
-                                        "User not found"
-                                )
-                        );
+                        .orElseThrow(() -> {
+
+                            log.warn(
+                                    "Customer phone lookup failed: user not found, " +
+                                            "userId={}",
+                                    userId
+                            );
+
+                            return new UserNotFoundException(
+                                    "User not found"
+                            );
+                        });
 
         return user.getPhone();
     }
@@ -137,6 +174,13 @@ public class UserService {
 
         if (!authenticatedUserId.equals(id)) {
 
+            log.warn(
+                    "User update denied: ownership validation failed, " +
+                            "authenticatedUserId={}, targetUserId={}",
+                    authenticatedUserId,
+                    id
+            );
+
             throw new AccessDeniedException(
                     "You are not allowed to update this user"
             );
@@ -144,11 +188,17 @@ public class UserService {
 
         User existingUser =
                 userRepository.findById(id)
-                        .orElseThrow(() ->
-                                new UserNotFoundException(
-                                        "User not found"
-                                )
-                        );
+                        .orElseThrow(() -> {
+
+                            log.warn(
+                                    "User update failed: user not found, userId={}",
+                                    id
+                            );
+
+                            return new UserNotFoundException(
+                                    "User not found"
+                            );
+                        });
 
         userMapper.updateEntity(
                 existingUser,
@@ -163,6 +213,13 @@ public class UserService {
                 userRepository.save(
                         existingUser
                 );
+
+
+        log.info(
+                "User profile updated: userId={}",
+                updatedUser.getId()
+        );
+
 
         return userMapper.toResponse(
                 updatedUser
@@ -180,6 +237,13 @@ public class UserService {
 
         if (!authenticatedUserId.equals(id)) {
 
+            log.warn(
+                    "User deletion denied: ownership validation failed, " +
+                            "authenticatedUserId={}, targetUserId={}",
+                    authenticatedUserId,
+                    id
+            );
+
             throw new AccessDeniedException(
                     "You are not allowed to delete this user"
             );
@@ -187,13 +251,25 @@ public class UserService {
 
         User user =
                 userRepository.findById(id)
-                        .orElseThrow(() ->
-                                new UserNotFoundException(
-                                        "User not found"
-                                )
-                        );
+                        .orElseThrow(() -> {
+
+                            log.warn(
+                                    "User deletion failed: user not found, userId={}",
+                                    id
+                            );
+
+                            return new UserNotFoundException(
+                                    "User not found"
+                            );
+                        });
 
         userRepository.delete(user);
+
+
+        log.info(
+                "User profile deleted: userId={}",
+                id
+        );
     }
 
 
@@ -210,6 +286,11 @@ public class UserService {
 
         // No profile means onboarding has not started/completed.
         if (userOptional.isEmpty()) {
+
+            log.debug(
+                    "User onboarding status: profile not found, userId={}",
+                    userId
+            );
 
             return new OnboardingStatusResponse(
                     false,
@@ -238,6 +319,15 @@ public class UserService {
             missingFields.add("lastName");
         }
 
+
+        log.debug(
+                "User onboarding status retrieved: userId={}, completed={}, missingFields={}",
+                userId,
+                missingFields.isEmpty(),
+                missingFields.size()
+        );
+
+
         return new OnboardingStatusResponse(
                 missingFields.isEmpty(),
                 missingFields
@@ -255,17 +345,32 @@ public class UserService {
 
         User user =
                 userRepository.findById(userId)
-                        .orElseThrow(() ->
-                                new UserNotFoundException(
-                                        "User not found"
-                                )
-                        );
+                        .orElseThrow(() -> {
+
+                            log.warn(
+                                    "Account settings lookup failed: user not found, " +
+                                            "userId={}",
+                                    userId
+                            );
+
+                            return new UserNotFoundException(
+                                    "User not found"
+                            );
+                        });
 
         boolean onboardingCompleted =
                 user.getFirstName() != null
                         && !user.getFirstName().isBlank()
                         && user.getLastName() != null
                         && !user.getLastName().isBlank();
+
+
+        log.debug(
+                "Account settings retrieved: userId={}, onboardingCompleted={}",
+                userId,
+                onboardingCompleted
+        );
+
 
         return new AccountSettingsResponse(
                 user.getId(),
@@ -287,11 +392,18 @@ public class UserService {
 
         User user =
                 userRepository.findById(userId)
-                        .orElseThrow(() ->
-                                new UserNotFoundException(
-                                        "User not found"
-                                )
-                        );
+                        .orElseThrow(() -> {
+
+                            log.warn(
+                                    "Account settings update failed: user not found, " +
+                                            "userId={}",
+                                    userId
+                            );
+
+                            return new UserNotFoundException(
+                                    "User not found"
+                            );
+                        });
 
         user.setFirstName(
                 request.firstName().trim()
@@ -325,6 +437,14 @@ public class UserService {
                         && !updatedUser.getFirstName().isBlank()
                         && updatedUser.getLastName() != null
                         && !updatedUser.getLastName().isBlank();
+
+
+        log.info(
+                "Account settings updated: userId={}, onboardingCompleted={}",
+                updatedUser.getId(),
+                onboardingCompleted
+        );
+
 
         return new AccountSettingsResponse(
                 updatedUser.getId(),

@@ -1,6 +1,13 @@
 package com.serviceconnect.provider.entity;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
+
 import lombok.Getter;
 import lombok.Setter;
 
@@ -11,16 +18,8 @@ import java.time.OffsetDateTime;
         name = "providers",
         indexes = {
                 @Index(
-                        name = "idx_provider_user_id",
-                        columnList = "user_id"
-                ),
-                @Index(
                         name = "idx_provider_status",
                         columnList = "status"
-                ),
-                @Index(
-                        name = "idx_provider_city",
-                        columnList = "city"
                 )
         }
 )
@@ -28,9 +27,18 @@ import java.time.OffsetDateTime;
 @Setter
 public class Provider {
 
+    // ============================================================
+    // ID
+    // ============================================================
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+
+    // ============================================================
+    // USER
+    // ============================================================
 
     @Column(
             name = "user_id",
@@ -39,6 +47,11 @@ public class Provider {
     )
     private Long userId;
 
+
+    // ============================================================
+    // BUSINESS
+    // ============================================================
+
     @Column(
             name = "business_name",
             nullable = false,
@@ -46,10 +59,12 @@ public class Provider {
     )
     private String businessName;
 
+
     @Column(
             columnDefinition = "TEXT"
     )
     private String description;
+
 
     @Column(
             nullable = false,
@@ -57,26 +72,31 @@ public class Provider {
     )
     private String phone;
 
+
     @Column(
             nullable = false,
             length = 255
     )
     private String email;
 
+
     @Column(
             columnDefinition = "TEXT"
     )
     private String address;
+
 
     @Column(
             length = 100
     )
     private String city;
 
+
     @Column(
             length = 100
     )
     private String state;
+
 
     @Column(
             name = "postal_code",
@@ -84,12 +104,22 @@ public class Provider {
     )
     private String postalCode;
 
-    // Provider location
+
+    // ============================================================
+    // LOCATION
+    // ============================================================
+
     @Column
     private Double latitude;
 
+
     @Column
     private Double longitude;
+
+
+    // ============================================================
+    // STATUS
+    // ============================================================
 
     @Column(
             nullable = false,
@@ -97,11 +127,17 @@ public class Provider {
     )
     private String status;
 
+
+    // ============================================================
+    // AUDIT
+    // ============================================================
+
     @Column(
             name = "created_at",
             nullable = false
     )
     private OffsetDateTime createdAt;
+
 
     @Column(
             name = "updated_at",

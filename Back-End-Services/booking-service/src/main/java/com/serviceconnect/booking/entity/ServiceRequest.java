@@ -18,20 +18,16 @@ import java.time.OffsetDateTime;
         name = "service_requests",
         indexes = {
                 @Index(
-                        name = "idx_service_requests_customer",
-                        columnList = "customer_id"
+                        name = "idx_service_requests_customer_created",
+                        columnList = "customer_id,created_at"
                 ),
                 @Index(
-                        name = "idx_service_requests_provider",
-                        columnList = "provider_id"
+                        name = "idx_service_requests_provider_created",
+                        columnList = "provider_id,created_at"
                 ),
                 @Index(
-                        name = "idx_service_requests_provider_status",
-                        columnList = "provider_id,status"
-                ),
-                @Index(
-                        name = "idx_service_requests_customer_status",
-                        columnList = "customer_id,status"
+                        name = "idx_service_requests_provider_status_created",
+                        columnList = "provider_id,status,created_at"
                 ),
                 @Index(
                         name = "idx_service_requests_provider_requested_start",
@@ -40,6 +36,10 @@ import java.time.OffsetDateTime;
         }
 )
 public class ServiceRequest {
+
+    // ============================================================
+    // ID
+    // ============================================================
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
