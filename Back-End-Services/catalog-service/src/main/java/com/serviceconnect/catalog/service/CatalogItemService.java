@@ -3,18 +3,19 @@ package com.serviceconnect.catalog.service;
 import com.serviceconnect.catalog.client.ProviderServiceClient;
 import com.serviceconnect.catalog.dto.request.CatalogItemRequest;
 import com.serviceconnect.catalog.dto.response.CatalogItemResponse;
+import com.serviceconnect.catalog.dto.response.PageResponse;
 import com.serviceconnect.catalog.entity.CatalogItem;
 import com.serviceconnect.catalog.repository.CatalogItemRepository;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -28,10 +29,25 @@ public class CatalogItemService {
     // ============================================================
     // CREATE CATALOG ITEM
     // ============================================================
+    //
+    // IMPORTANT:
+    // caller supplies USER ID
+    // service resolves USER ID -> PROVIDER ID
+    //
+    // Provider ID is never trusted from the client.
+    // ============================================================
 
     public CatalogItemResponse create(
-            Long providerId,
+            Long authenticatedUserId,
+            String authorizationHeader,
             CatalogItemRequest request) {
+
+        Long providerId =
+                resolveProviderId(
+                        authenticatedUserId,
+                        authorizationHeader
+                );
+
 
         CatalogItem item =
                 new CatalogItem();
@@ -60,21 +76,17 @@ public class CatalogItemService {
 
         item.setActive(true);
 
+
         CatalogItem saved =
                 catalogItemRepository.save(item);
+
 
         return toResponse(saved);
     }
 
 
     // ============================================================
-    // GET CATALOG ITEM
-    //
-    // CUSTOMER CATALOG RULE:
-    //
-    // Item must be:
-    // 1. Active
-    // 2. Belong to an APPROVED provider
+    // CUSTOMER - GET ITEM BY ID
     // ============================================================
 
     public CatalogItemResponse getById(
@@ -82,8 +94,7 @@ public class CatalogItemService {
             String authorizationHeader) {
 
         CatalogItem item =
-                catalogItemRepository
-                        .findById(id)
+                catalogItemRepository.findById(id)
                         .orElseThrow(() ->
                                 new ResponseStatusException(
                                         HttpStatus.NOT_FOUND,
@@ -91,132 +102,200 @@ public class CatalogItemService {
                                 )
                         );
 
+
         if (!Boolean.TRUE.equals(
-                item.getActive()
-        )) {
+                item.getActive())) {
 
             throw new ResponseStatusException(
                     HttpStatus.NOT_FOUND,
-                    "Catalog item not available"
+                    "Catalog item not found"
             );
         }
 
-        Set<Long> approvedProviderIds =
-                getApprovedProviderIds(
-                        authorizationHeader
+
+        providerServiceClient
+                .validateApprovedProvider(
+                        item.getProviderId()
                 );
 
-        if (!approvedProviderIds.contains(
-                item.getProviderId()
-        )) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.NOT_FOUND,
-                    "Catalog item not available"
-            );
-        }
 
         return toResponse(item);
     }
 
 
     // ============================================================
-    // GET APPROVED + ACTIVE CATALOG
+    // CUSTOMER - SEARCH + PAGINATION
     // ============================================================
 
-    public List<CatalogItemResponse> getAllActive(
-            String authorizationHeader) {
+    public PageResponse<CatalogItemResponse> search(
 
-        Set<Long> approvedProviderIds =
-                getApprovedProviderIds(
-                        authorizationHeader
-                );
+            String search,
 
-        return catalogItemRepository
-                .findByActiveTrue()
-                .stream()
-                .filter(item ->
-                        approvedProviderIds.contains(
-                                item.getProviderId()
+            String category,
+
+            String authorizationHeader,
+
+            Pageable pageable) {
+
+
+        List<Long> approvedProviderIds =
+                providerServiceClient
+                        .getApprovedProviders(
+                                authorizationHeader
                         )
-                )
-                .map(this::toResponse)
-                .toList();
-    }
+                        .stream()
+                        .map(
+                                ProviderServiceClient
+                                        .ProviderResponse::id
+                        )
+                        .toList();
 
 
-    // ============================================================
-    // GET APPROVED + ACTIVE PROVIDER CATALOG
-    // ============================================================
+        if (approvedProviderIds.isEmpty()) {
 
-    public List<CatalogItemResponse> getByProvider(
-            Long providerId,
-            String authorizationHeader) {
-
-        Set<Long> approvedProviderIds =
-                getApprovedProviderIds(
-                        authorizationHeader
-                );
-
-        if (!approvedProviderIds.contains(
-                providerId
-        )) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.NOT_FOUND,
-                    "Provider not available"
+            return new PageResponse<>(
+                    List.of(),
+                    pageable.getPageNumber(),
+                    pageable.getPageSize(),
+                    0,
+                    0,
+                    true,
+                    true
             );
         }
 
-        return catalogItemRepository
-                .findByProviderIdAndActiveTrue(
-                        providerId
-                )
-                .stream()
-                .map(this::toResponse)
-                .toList();
+
+        boolean hasSearch =
+                search != null
+                        && !search.isBlank();
+
+
+        boolean hasCategory =
+                category != null
+                        && !category.isBlank();
+
+
+        Page<CatalogItem> page;
+
+
+        // ========================================================
+        // SEARCH + CATEGORY
+        // ========================================================
+
+        if (hasSearch && hasCategory) {
+
+            page =
+                    catalogItemRepository
+                            .searchActiveApprovedProvidersByCategory(
+                                    search.trim(),
+                                    category.trim(),
+                                    approvedProviderIds,
+                                    pageable
+                            );
+        }
+
+
+        // ========================================================
+        // SEARCH ONLY
+        // ========================================================
+
+        else if (hasSearch) {
+
+            page =
+                    catalogItemRepository
+                            .searchActiveApprovedProviders(
+                                    search.trim(),
+                                    approvedProviderIds,
+                                    pageable
+                            );
+        }
+
+
+        // ========================================================
+        // CATEGORY ONLY
+        // ========================================================
+
+        else if (hasCategory) {
+
+            page =
+                    catalogItemRepository
+                            .findActiveByCategoryForApprovedProviders(
+                                    category.trim(),
+                                    approvedProviderIds,
+                                    pageable
+                            );
+        }
+
+
+        // ========================================================
+        // ALL ACTIVE APPROVED PROVIDER ITEMS
+        // ========================================================
+
+        else {
+
+            page =
+                    catalogItemRepository
+                            .findActiveForApprovedProviders(
+                                    approvedProviderIds,
+                                    pageable
+                            );
+        }
+
+
+        return toPageResponse(page);
     }
 
 
     // ============================================================
-    // GET APPROVED + ACTIVE CATEGORY CATALOG
+    // CUSTOMER - PROVIDER ITEMS
     // ============================================================
 
-    public List<CatalogItemResponse> getByCategory(
-            String category,
-            String authorizationHeader) {
+    public PageResponse<CatalogItemResponse> getByProvider(
+            Long providerId,
+            String authorizationHeader,
+            Pageable pageable) {
 
-        Set<Long> approvedProviderIds =
-                getApprovedProviderIds(
-                        authorizationHeader
+        providerServiceClient
+                .validateApprovedProvider(
+                        providerId
                 );
 
-        return catalogItemRepository
-                .findByCategory(category)
-                .stream()
-                .filter(CatalogItem::getActive)
-                .filter(item ->
-                        approvedProviderIds.contains(
-                                item.getProviderId()
-                        )
-                )
-                .map(this::toResponse)
-                .toList();
+
+        Page<CatalogItem> page =
+                catalogItemRepository
+                        .findByProviderIdAndActiveTrue(
+                                providerId,
+                                pageable
+                        );
+
+
+        return toPageResponse(page);
     }
 
 
     // ============================================================
     // UPDATE CATALOG ITEM
     // ============================================================
+    //
+    // authenticatedUserId is used to resolve the caller's
+    // provider ID before the ownership check.
+    // ============================================================
 
     public CatalogItemResponse update(
-            Long providerId,
+            Long authenticatedUserId,
+            String authorizationHeader,
             Long id,
             CatalogItemRequest request) {
 
+        Long providerId =
+                resolveProviderId(
+                        authenticatedUserId,
+                        authorizationHeader
+                );
+
+
         CatalogItem item =
-                catalogItemRepository
-                        .findById(id)
+                catalogItemRepository.findById(id)
                         .orElseThrow(() ->
                                 new ResponseStatusException(
                                         HttpStatus.NOT_FOUND,
@@ -224,14 +303,12 @@ public class CatalogItemService {
                                 )
                         );
 
-        if (!item.getProviderId()
-                .equals(providerId)) {
 
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "You cannot update another provider's catalog item"
-            );
-        }
+        validateOwnership(
+                item,
+                providerId
+        );
+
 
         item.setName(
                 request.name()
@@ -253,8 +330,10 @@ public class CatalogItemService {
                 request.durationMinutes()
         );
 
+
         CatalogItem updated =
                 catalogItemRepository.save(item);
+
 
         return toResponse(updated);
     }
@@ -265,12 +344,19 @@ public class CatalogItemService {
     // ============================================================
 
     public void deactivate(
-            Long providerId,
+            Long authenticatedUserId,
+            String authorizationHeader,
             Long id) {
 
+        Long providerId =
+                resolveProviderId(
+                        authenticatedUserId,
+                        authorizationHeader
+                );
+
+
         CatalogItem item =
-                catalogItemRepository
-                        .findById(id)
+                catalogItemRepository.findById(id)
                         .orElseThrow(() ->
                                 new ResponseStatusException(
                                         HttpStatus.NOT_FOUND,
@@ -278,14 +364,22 @@ public class CatalogItemService {
                                 )
                         );
 
-        if (!item.getProviderId()
-                .equals(providerId)) {
+
+        validateOwnership(
+                item,
+                providerId
+        );
+
+
+        if (!Boolean.TRUE.equals(
+                item.getActive())) {
 
             throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "You cannot deactivate another provider's catalog item"
+                    HttpStatus.BAD_REQUEST,
+                    "Catalog item is already inactive"
             );
         }
+
 
         item.setActive(false);
 
@@ -294,50 +388,128 @@ public class CatalogItemService {
 
 
     // ============================================================
-    // GET APPROVED PROVIDER IDS
+    // ACTIVATE CATALOG ITEM
     // ============================================================
 
-    private Set<Long> getApprovedProviderIds(
-            String authorizationHeader) {
+    public CatalogItemResponse activate(
+            Long authenticatedUserId,
+            String authorizationHeader,
+            Long id) {
 
-        if (authorizationHeader == null
-                || authorizationHeader.isBlank()) {
+        Long providerId =
+                resolveProviderId(
+                        authenticatedUserId,
+                        authorizationHeader
+                );
+
+
+        CatalogItem item =
+                catalogItemRepository.findById(id)
+                        .orElseThrow(() ->
+                                new ResponseStatusException(
+                                        HttpStatus.NOT_FOUND,
+                                        "Catalog item not found"
+                                )
+                        );
+
+
+        validateOwnership(
+                item,
+                providerId
+        );
+
+
+        if (Boolean.TRUE.equals(
+                item.getActive())) {
 
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED,
-                    "Authorization is required"
+                    HttpStatus.BAD_REQUEST,
+                    "Catalog item is already active"
             );
         }
 
-        List<ProviderServiceClient.ProviderResponse>
-                providers =
-                providerServiceClient
-                        .getApprovedProviders(
-                                authorizationHeader
-                        );
 
-        Set<Long> approvedProviderIds =
-                new HashSet<>();
+        item.setActive(true);
 
-        for (
-                ProviderServiceClient.ProviderResponse provider
-                : providers
-        ) {
 
-            if (provider.id() != null) {
+        CatalogItem updated =
+                catalogItemRepository.save(item);
 
-                approvedProviderIds.add(
-                        provider.id()
-                );
-            }
-        }
 
-        return approvedProviderIds;
+        return toResponse(updated);
     }
 
 
     // ============================================================
-    // ENTITY → RESPONSE
+    // RESOLVE PROVIDER FROM AUTHENTICATED USER
+    // ============================================================
+
+    private Long resolveProviderId(
+            Long authenticatedUserId,
+            String authorizationHeader) {
+
+        if (authenticatedUserId == null) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Authenticated user is required"
+            );
+        }
+
+
+        ProviderServiceClient.ProviderResponse provider =
+                providerServiceClient.getProviderByUserId(
+                        authenticatedUserId,
+                        authorizationHeader
+                );
+
+
+        if (provider == null
+                || provider.id() == null) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Provider profile not found"
+            );
+        }
+
+
+        if (provider.userId() == null
+                || !provider.userId()
+                .equals(authenticatedUserId)) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Provider ownership could not be verified"
+            );
+        }
+
+
+        return provider.id();
+    }
+
+
+    // ============================================================
+    // OWNERSHIP VALIDATION
+    // ============================================================
+
+    private void validateOwnership(
+            CatalogItem item,
+            Long providerId) {
+
+        if (!item.getProviderId()
+                .equals(providerId)) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "You cannot modify another provider's catalog item"
+            );
+        }
+    }
+
+
+    // ============================================================
+    // ENTITY -> RESPONSE
     // ============================================================
 
     private CatalogItemResponse toResponse(
@@ -354,6 +526,34 @@ public class CatalogItemService {
                 item.getActive(),
                 item.getCreatedAt(),
                 item.getUpdatedAt()
+        );
+    }
+
+
+    // ============================================================
+    // PAGE -> RESPONSE
+    // ============================================================
+
+    private PageResponse<CatalogItemResponse> toPageResponse(
+            Page<CatalogItem> page) {
+
+        return new PageResponse<>(
+                page.getContent()
+                        .stream()
+                        .map(this::toResponse)
+                        .toList(),
+
+                page.getNumber(),
+
+                page.getSize(),
+
+                page.getTotalElements(),
+
+                page.getTotalPages(),
+
+                page.isFirst(),
+
+                page.isLast()
         );
     }
 }
