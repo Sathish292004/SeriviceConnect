@@ -12,22 +12,17 @@ import jakarta.validation.constraints.Positive;
 
 import lombok.RequiredArgsConstructor;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("/api/v1/providers")
 @RequiredArgsConstructor
 public class ProviderController {
-
 
     private final ProviderService providerService;
 
@@ -51,7 +46,7 @@ public class ProviderController {
                 getUserId(jwt);
 
         return ResponseEntity
-                .status(HttpStatus.CREATED)
+                .status(201)
                 .body(
                         providerService.createProvider(
                                 userId,
@@ -67,12 +62,13 @@ public class ProviderController {
 
     @GetMapping("/admin/all")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<ProviderResponse>> getAllProviders(
+    public ResponseEntity<?> getAllProviders(
 
             @RequestParam(required = false)
             String status) {
 
-        if (status == null || status.isBlank()) {
+        if (status == null
+                || status.isBlank()) {
 
             return ResponseEntity.ok(
                     providerService.getAllProviders()
@@ -103,62 +99,46 @@ public class ProviderController {
             @AuthenticationPrincipal
             Jwt jwt) {
 
-        Long authenticatedUserId = getUserId(jwt);
-
-        String role = getRole(jwt);
-
-        // PROVIDER can only view their own profile
-        if ("PROVIDER".equals(role)) {
-
-            ProviderResponse provider =
-                    providerService.getProviderById(providerId);
-
-            if (!authenticatedUserId.equals(provider.userId())) {
-
-                throw new org.springframework.security.access.AccessDeniedException(
-                        "You can only view your own provider profile"
-                );
-            }
-
-            return ResponseEntity.ok(provider);
-        }
-
-        // ADMIN can view any provider
-        return ResponseEntity.ok(
-                providerService.getProviderById(providerId)
-        );
-    }
-
-
-    // ============================================================
-    // PROVIDER - GET OWN PROFILE
-    // ADMIN CAN GET ANY PROVIDER PROFILE
-    // ============================================================
-
-    @GetMapping("/user/{userId}")
-    @PreAuthorize("hasAnyRole('PROVIDER', 'ADMIN')")
-    public ResponseEntity<ProviderResponse> getProviderByUserId(
-
-            @PathVariable
-            @Positive
-            Long userId,
-
-            @AuthenticationPrincipal
-            Jwt jwt) {
-
         Long authenticatedUserId =
                 getUserId(jwt);
 
         String role =
                 getRole(jwt);
 
+        ProviderResponse provider =
+                providerService.getProviderById(
+                        providerId
+                );
+
+        // PROVIDER can only view own profile
         if ("PROVIDER".equals(role)
-                && !authenticatedUserId.equals(userId)) {
+                && !authenticatedUserId.equals(
+                provider.userId())) {
 
             throw new org.springframework.security.access.AccessDeniedException(
                     "You can only view your own provider profile"
             );
         }
+
+        return ResponseEntity.ok(
+                provider
+        );
+    }
+
+
+    // ============================================================
+    // PROVIDER - GET OWN PROFILE
+    // ============================================================
+
+    @GetMapping("/me")
+    @PreAuthorize("hasRole('PROVIDER')")
+    public ResponseEntity<ProviderResponse> getMyProviderProfile(
+
+            @AuthenticationPrincipal
+            Jwt jwt) {
+
+        Long userId =
+                getUserId(jwt);
 
         return ResponseEntity.ok(
                 providerService.getProviderByUserId(
@@ -187,13 +167,13 @@ public class ProviderController {
             @AuthenticationPrincipal
             Jwt jwt) {
 
-        Long authenticatedUserId =
+        Long userId =
                 getUserId(jwt);
 
         return ResponseEntity.ok(
                 providerService.updateProvider(
                         providerId,
-                        authenticatedUserId,
+                        userId,
                         request
                 )
         );
@@ -253,8 +233,7 @@ public class ProviderController {
 
     @GetMapping
     @PreAuthorize("hasRole('CUSTOMER')")
-    public ResponseEntity<List<ProviderResponse>>
-    getApprovedProviders() {
+    public ResponseEntity<?> getApprovedProviders() {
 
         return ResponseEntity.ok(
                 providerService.getApprovedProviders()
@@ -316,6 +295,29 @@ public class ProviderController {
 
 
     // ============================================================
+    // PROVIDER - GET ONBOARDING STATUS
+    // ============================================================
+
+    @GetMapping("/onboarding/status")
+    @PreAuthorize("hasRole('PROVIDER')")
+    public ResponseEntity<ProviderOnboardingStatusResponse>
+    getOnboardingStatus(
+
+            @AuthenticationPrincipal
+            Jwt jwt) {
+
+        Long userId =
+                getUserId(jwt);
+
+        return ResponseEntity.ok(
+                providerService.getOnboardingStatus(
+                        userId
+                )
+        );
+    }
+
+
+    // ============================================================
     // JWT USER ID
     // ============================================================
 
@@ -341,7 +343,9 @@ public class ProviderController {
 
         try {
 
-            return Long.parseLong(subject);
+            return Long.parseLong(
+                    subject
+            );
 
         } catch (NumberFormatException exception) {
 
@@ -372,25 +376,5 @@ public class ProviderController {
         return role
                 .trim()
                 .toUpperCase();
-    }
-
-    // ============================================================
-    // PROVIDER - GET ONBOARDING STATUS
-    // ============================================================
-
-    @GetMapping("/me/onboarding")
-    @PreAuthorize("hasRole('PROVIDER')")
-    public ResponseEntity<ProviderOnboardingStatusResponse>
-    getMyOnboardingStatus(
-            @AuthenticationPrincipal Jwt jwt) {
-
-        Long userId =
-                getUserId(jwt);
-
-        return ResponseEntity.ok(
-                providerService.getOnboardingStatus(
-                        userId
-                )
-        );
     }
 }

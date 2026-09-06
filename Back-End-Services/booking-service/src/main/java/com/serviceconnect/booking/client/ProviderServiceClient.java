@@ -1,55 +1,110 @@
 package com.serviceconnect.booking.client;
 
-import lombok.RequiredArgsConstructor;
-
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
-
-import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
-
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import org.springframework.web.server.ResponseStatusException;
+import java.time.DayOfWeek;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.util.List;
 
 @Component
-@RequiredArgsConstructor
 public class ProviderServiceClient {
 
-    private final RestClient.Builder restClientBuilder;
+    private final RestTemplate restTemplate;
 
     @Value("${services.provider.url}")
     private String providerServiceUrl;
+
+
+    public ProviderServiceClient(
+            RestTemplate restTemplate
+    ) {
+        this.restTemplate = restTemplate;
+    }
 
 
     // ============================================================
     // VALIDATE APPROVED PROVIDER
     // ============================================================
 
-    public void validateApprovedProvider(
-            Long providerId) {
+    public boolean validateApprovedProvider(
+            Long providerId
+    ) {
 
-        ProviderResponse provider =
-                getProvider(providerId);
-
-        if (provider == null) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.NOT_FOUND,
-                    "Provider not found"
-            );
+        if (providerId == null) {
+            return false;
         }
 
-        if (!"APPROVED".equalsIgnoreCase(
-                provider.status())) {
+        return validateApprovedProvider(
+                providerId,
+                getAuthorizationHeader()
+        );
+    }
 
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Provider is not currently available"
+
+    public boolean validateApprovedProvider(
+            Long providerId,
+            String authorizationHeader
+    ) {
+
+        if (providerId == null) {
+            return false;
+        }
+
+        try {
+
+            String url =
+                    providerServiceUrl
+                            + "/api/v1/providers/"
+                            + providerId
+                            + "/public";
+
+            HttpHeaders headers =
+                    new HttpHeaders();
+
+            if (authorizationHeader != null
+                    && !authorizationHeader.isBlank()) {
+
+                headers.set(
+                        HttpHeaders.AUTHORIZATION,
+                        authorizationHeader
+                );
+            }
+
+            org.springframework.http.HttpEntity<Void> entity =
+                    new org.springframework.http.HttpEntity<>(
+                            headers
+                    );
+
+            ResponseEntity<ProviderResponse> response =
+                    restTemplate.exchange(
+                            url,
+                            HttpMethod.GET,
+                            entity,
+                            ProviderResponse.class
+                    );
+
+            return response.getStatusCode().is2xxSuccessful()
+                    && response.getBody() != null
+                    && response.getBody().id() != null
+                    && response.getBody().status() != null
+                    && "APPROVED".equalsIgnoreCase(
+                    response.getBody().status()
             );
+
+        } catch (RestClientException ex) {
+
+            return false;
         }
     }
 
@@ -59,178 +114,344 @@ public class ProviderServiceClient {
     // ============================================================
 
     public Long getProviderIdByUserId(
-            Long userId) {
+            Long userId
+    ) {
 
-        if (userId == null || userId <= 0) {
+        return getProviderIdByUserId(
+                userId,
+                getAuthorizationHeader()
+        );
+    }
 
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "User ID is required"
-            );
+
+    public Long getProviderIdByUserId(
+            Long userId,
+            String authorizationHeader
+    ) {
+
+        if (userId == null) {
+            return null;
         }
-
-
-        String authorization =
-                getAuthorizationHeader();
-
 
         try {
 
-            ProviderResponse response =
-                    restClientBuilder
-                            .baseUrl(providerServiceUrl)
-                            .build()
-                            .get()
-                            .uri(
-                                    "/api/v1/providers/user/{userId}",
-                                    userId
-                            )
-                            .header(
-                                    HttpHeaders.AUTHORIZATION,
-                                    authorization
-                            )
-                            .retrieve()
-                            .body(ProviderResponse.class);
+            String url =
+                    providerServiceUrl
+                            + "/api/v1/providers/user/"
+                            + userId;
 
+            HttpHeaders headers =
+                    new HttpHeaders();
 
-            if (response == null) {
+            if (authorizationHeader != null
+                    && !authorizationHeader.isBlank()) {
 
-                throw new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Provider profile not found"
+                headers.set(
+                        HttpHeaders.AUTHORIZATION,
+                        authorizationHeader
                 );
             }
 
+            org.springframework.http.HttpEntity<Void> entity =
+                    new org.springframework.http.HttpEntity<>(
+                            headers
+                    );
 
-            if (response.id() == null) {
+            ResponseEntity<ProviderResponse> response =
+                    restTemplate.exchange(
+                            url,
+                            HttpMethod.GET,
+                            entity,
+                            ProviderResponse.class
+                    );
 
-                throw new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Provider ID not found"
-                );
+            if (!response.getStatusCode().is2xxSuccessful()
+                    || response.getBody() == null) {
+
+                return null;
             }
 
+            return response.getBody().id();
 
-            return response.id();
+        } catch (RestClientException ex) {
 
-
-        } catch (ResponseStatusException exception) {
-
-            throw exception;
-
-        } catch (RestClientException exception) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.SERVICE_UNAVAILABLE,
-                    "Provider service is currently unavailable"
-            );
+            return null;
         }
     }
 
 
     // ============================================================
-    // GET PROVIDER FROM PROVIDER SERVICE
+    // GET ACTIVE PROVIDER AVAILABILITY
+    // ============================================================
+
+    public boolean checkAvailability(
+            Long providerId,
+            OffsetDateTime requestedStartAt,
+            OffsetDateTime requestedEndAt,
+            String authorizationHeader
+    ) {
+
+        if (providerId == null
+                || requestedStartAt == null
+                || requestedEndAt == null) {
+
+            return false;
+        }
+
+        if (!requestedStartAt.isBefore(
+                requestedEndAt
+        )) {
+
+            return false;
+        }
+
+        try {
+
+            String url =
+                    providerServiceUrl
+                            + "/api/v1/providers/"
+                            + providerId
+                            + "/availability/active";
+
+            HttpHeaders headers =
+                    new HttpHeaders();
+
+            if (authorizationHeader != null
+                    && !authorizationHeader.isBlank()) {
+
+                headers.set(
+                        HttpHeaders.AUTHORIZATION,
+                        authorizationHeader
+                );
+            }
+
+            org.springframework.http.HttpEntity<Void> entity =
+                    new org.springframework.http.HttpEntity<>(
+                            headers
+                    );
+
+            ResponseEntity<List<ProviderAvailabilityResponse>>
+                    response =
+                    restTemplate.exchange(
+                            url,
+                            HttpMethod.GET,
+                            entity,
+                            new ParameterizedTypeReference<>() {
+                            }
+                    );
+
+            if (!response.getStatusCode().is2xxSuccessful()
+                    || response.getBody() == null
+                    || response.getBody().isEmpty()) {
+
+                return false;
+            }
+
+
+            /*
+             * Provider availability is currently stored as:
+             *
+             * DAY OF WEEK
+             * START TIME
+             * END TIME
+             *
+             * The incoming booking request contains an offset,
+             * so we evaluate the local date/time represented by
+             * that requested OffsetDateTime.
+             */
+
+
+            if (!requestedStartAt.toLocalDate()
+                    .equals(
+                            requestedEndAt.toLocalDate()
+                    )) {
+
+                return false;
+            }
+
+
+            DayOfWeek requestedDay =
+                    requestedStartAt.getDayOfWeek();
+
+            LocalTime requestedStart =
+                    requestedStartAt.toLocalTime();
+
+            LocalTime requestedEnd =
+                    requestedEndAt.toLocalTime();
+
+
+            return response.getBody()
+                    .stream()
+                    .filter(
+                            ProviderAvailabilityResponse::active
+                    )
+                    .anyMatch(
+                            availability -> {
+
+                                if (availability.dayOfWeek() == null
+                                        || availability.startTime() == null
+                                        || availability.endTime() == null) {
+
+                                    return false;
+                                }
+
+
+                                DayOfWeek availabilityDay;
+
+                                try {
+
+                                    availabilityDay =
+                                            DayOfWeek.valueOf(
+                                                    availability
+                                                            .dayOfWeek()
+                                                            .trim()
+                                                            .toUpperCase()
+                                            );
+
+                                } catch (
+                                        IllegalArgumentException ex
+                                ) {
+
+                                    return false;
+                                }
+
+
+                                if (availabilityDay
+                                        != requestedDay) {
+
+                                    return false;
+                                }
+
+
+                                /*
+                                 * The COMPLETE requested interval
+                                 * must fit inside one active window.
+                                 *
+                                 * Example:
+                                 *
+                                 * Availability:
+                                 * 09:00 - 17:00
+                                 *
+                                 * Booking:
+                                 * 10:00 - 12:00 -> allowed
+                                 *
+                                 * Booking:
+                                 * 08:00 - 10:00 -> rejected
+                                 *
+                                 * Booking:
+                                 * 16:00 - 18:00 -> rejected
+                                 */
+
+                                return !requestedStart.isBefore(
+                                        availability.startTime()
+                                )
+                                        && !requestedEnd.isAfter(
+                                        availability.endTime()
+                                );
+                            }
+                    );
+
+        } catch (RestClientException ex) {
+
+            return false;
+        }
+    }
+
+
+    // ============================================================
+    // GET PROVIDER
     // ============================================================
 
     private ProviderResponse getProvider(
-            Long providerId) {
+            Long providerId,
+            String authorizationHeader
+    ) {
 
-        if (providerId == null || providerId <= 0) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Provider ID is required"
-            );
+        if (providerId == null) {
+            return null;
         }
-
-
-        String authorization =
-                getAuthorizationHeader();
-
 
         try {
 
-            ProviderResponse response =
-                    restClientBuilder
-                            .baseUrl(providerServiceUrl)
-                            .build()
-                            .get()
-                            .uri(
-                                    "/api/v1/providers/{providerId}/public",
-                                    providerId
-                            )
-                            .header(
-                                    HttpHeaders.AUTHORIZATION,
-                                    authorization
-                            )
-                            .retrieve()
-                            .body(ProviderResponse.class);
+            String url =
+                    providerServiceUrl
+                            + "/api/v1/providers/"
+                            + providerId
+                            + "/public";
 
+            HttpHeaders headers =
+                    new HttpHeaders();
 
-            if (response == null) {
+            if (authorizationHeader != null
+                    && !authorizationHeader.isBlank()) {
 
-                throw new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Provider not found"
+                headers.set(
+                        HttpHeaders.AUTHORIZATION,
+                        authorizationHeader
                 );
             }
 
+            org.springframework.http.HttpEntity<Void> entity =
+                    new org.springframework.http.HttpEntity<>(
+                            headers
+                    );
 
-            return response;
+            ResponseEntity<ProviderResponse> response =
+                    restTemplate.exchange(
+                            url,
+                            HttpMethod.GET,
+                            entity,
+                            ProviderResponse.class
+                    );
 
+            if (!response.getStatusCode().is2xxSuccessful()) {
 
-        } catch (ResponseStatusException exception) {
+                return null;
+            }
 
-            throw exception;
+            return response.getBody();
 
-        } catch (RestClientException exception) {
+        } catch (RestClientException ex) {
 
-            throw new ResponseStatusException(
-                    HttpStatus.SERVICE_UNAVAILABLE,
-                    "Provider service is currently unavailable"
-            );
+            return null;
         }
     }
 
 
     // ============================================================
-    // GET AUTHORIZATION HEADER
+    // GET CURRENT AUTHORIZATION HEADER
     // ============================================================
 
     private String getAuthorizationHeader() {
 
-        ServletRequestAttributes attributes =
-                (ServletRequestAttributes)
-                        RequestContextHolder.getRequestAttributes();
+        try {
 
+            RequestAttributes attributes =
+                    RequestContextHolder
+                            .getRequestAttributes();
 
-        if (attributes == null) {
+            if (attributes
+                    instanceof ServletRequestAttributes
+                    servletRequestAttributes) {
 
-            throw new ResponseStatusException(
-                    HttpStatus.INTERNAL_SERVER_ERROR,
-                    "No current HTTP request found"
-            );
+                String authorization =
+                        servletRequestAttributes
+                                .getRequest()
+                                .getHeader(
+                                        HttpHeaders.AUTHORIZATION
+                                );
+
+                if (authorization != null
+                        && !authorization.isBlank()) {
+
+                    return authorization;
+                }
+            }
+
+        } catch (Exception ignored) {
         }
 
-
-        String authorization =
-                attributes.getRequest()
-                        .getHeader(
-                                HttpHeaders.AUTHORIZATION
-                        );
-
-
-        if (authorization == null
-                || authorization.isBlank()) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED,
-                    "Authorization header is missing"
-            );
-        }
-
-
-        return authorization;
+        return null;
     }
 
 
@@ -246,26 +467,32 @@ public class ProviderServiceClient {
 
             String businessName,
 
-            String description,
-
-            String phone,
-
-            String email,
-
-            String address,
-
-            String city,
-
-            String state,
-
-            String postalCode,
-
-            Double latitude,
-
-            Double longitude,
-
             String status
+    ) {
+    }
 
+
+    // ============================================================
+    // PROVIDER AVAILABILITY RESPONSE
+    // ============================================================
+
+    private record ProviderAvailabilityResponse(
+
+            Long id,
+
+            Long providerId,
+
+            String dayOfWeek,
+
+            LocalTime startTime,
+
+            LocalTime endTime,
+
+            boolean active,
+
+            OffsetDateTime createdAt,
+
+            OffsetDateTime updatedAt
     ) {
     }
 }

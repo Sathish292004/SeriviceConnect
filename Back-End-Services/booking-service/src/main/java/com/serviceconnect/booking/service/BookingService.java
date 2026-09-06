@@ -39,20 +39,31 @@ public class BookingService {
     public ServiceRequestResponse createServiceRequest(
             Long customerId,
             String authorizationHeader,
-            CreateServiceRequest request) {
+            CreateServiceRequest request
+    ) {
 
-        // ========================================================
+        // --------------------------------------------------------
         // VALIDATE PROVIDER
-        // ========================================================
+        // --------------------------------------------------------
 
-        providerServiceClient.validateApprovedProvider(
-                request.providerId()
-        );
+        boolean approvedProvider =
+                providerServiceClient.validateApprovedProvider(
+                        request.providerId(),
+                        authorizationHeader
+                );
+
+        if (!approvedProvider) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Provider is not approved"
+            );
+        }
 
 
-        // ========================================================
-        // VALIDATE CATALOG ITEM
-        // ========================================================
+        // --------------------------------------------------------
+        // GET CATALOG ITEM
+        // --------------------------------------------------------
 
         CatalogServiceClient.CatalogItemResponse catalogItem =
                 catalogServiceClient.getCatalogItem(
@@ -70,11 +81,13 @@ public class BookingService {
         }
 
 
-        // ========================================================
+        // --------------------------------------------------------
         // CATALOG ITEM MUST BE ACTIVE
-        // ========================================================
+        // --------------------------------------------------------
 
-        if (!Boolean.TRUE.equals(catalogItem.active())) {
+        if (!Boolean.TRUE.equals(
+                catalogItem.active()
+        )) {
 
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -83,12 +96,13 @@ public class BookingService {
         }
 
 
-        // ========================================================
+        // --------------------------------------------------------
         // CATALOG ITEM MUST BELONG TO PROVIDER
-        // ========================================================
+        // --------------------------------------------------------
 
-        if (!request.providerId()
-                .equals(catalogItem.providerId())) {
+        if (!request.providerId().equals(
+                catalogItem.providerId()
+        )) {
 
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -97,18 +111,88 @@ public class BookingService {
         }
 
 
-        // ========================================================
-        // CREATE SERVICE REQUEST
-        // ========================================================
+        // --------------------------------------------------------
+        // VALIDATE SERVICE DURATION
+        // --------------------------------------------------------
+
+        if (catalogItem.durationMinutes() == null
+                || catalogItem.durationMinutes() <= 0) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Catalog item has an invalid service duration"
+            );
+        }
+
+
+        // --------------------------------------------------------
+        // VALIDATE REQUESTED START
+        // --------------------------------------------------------
+
+        if (request.requestedStartAt() == null) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Requested start time is required"
+            );
+        }
+
+
+        if (request.requestedStartAt().isBefore(
+                OffsetDateTime.now()
+        )) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Requested start time must be in the future"
+            );
+        }
+
+
+        // --------------------------------------------------------
+        // CALCULATE REQUESTED END
+        // --------------------------------------------------------
+
+        OffsetDateTime requestedEndAt =
+                request.requestedStartAt()
+                        .plusMinutes(
+                                catalogItem.durationMinutes()
+                        );
+
+
+        // --------------------------------------------------------
+        // VALIDATE PROVIDER AVAILABILITY
+        // --------------------------------------------------------
+
+        boolean providerAvailable =
+                providerServiceClient.checkAvailability(
+                        request.providerId(),
+                        request.requestedStartAt(),
+                        requestedEndAt,
+                        authorizationHeader
+                );
+
+
+        if (!providerAvailable) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Provider is not available for the requested time"
+            );
+        }
+
+
+        // --------------------------------------------------------
+        // CREATE REQUEST
+        // --------------------------------------------------------
 
         OffsetDateTime now =
                 OffsetDateTime.now();
 
+
         ServiceRequest serviceRequest =
                 new ServiceRequest();
 
-
-        // Customer ID comes from JWT.
 
         serviceRequest.setCustomerId(
                 customerId
@@ -120,14 +204,24 @@ public class BookingService {
         );
 
 
-        // Store Catalog reference.
-
         serviceRequest.setCatalogItemId(
                 catalogItem.id()
         );
 
 
-        // Store catalog name as historical snapshot.
+        // --------------------------------------------------------
+        // SERVICE TYPE SNAPSHOT
+        // --------------------------------------------------------
+
+        if (catalogItem.name() == null
+                || catalogItem.name().isBlank()) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Catalog item name is invalid"
+            );
+        }
+
 
         serviceRequest.setServiceType(
                 catalogItem.name().trim()
@@ -154,7 +248,23 @@ public class BookingService {
         );
 
 
-        // Every new request starts as PENDING.
+        // --------------------------------------------------------
+        // BOOKING INTERVAL
+        // --------------------------------------------------------
+
+        serviceRequest.setRequestedStartAt(
+                request.requestedStartAt()
+        );
+
+
+        serviceRequest.setRequestedEndAt(
+                requestedEndAt
+        );
+
+
+        // --------------------------------------------------------
+        // INITIAL STATUS
+        // --------------------------------------------------------
 
         serviceRequest.setStatus(
                 "PENDING"
@@ -171,17 +281,15 @@ public class BookingService {
         );
 
 
-        // ========================================================
+        // --------------------------------------------------------
         // SAVE
-        // ========================================================
+        // --------------------------------------------------------
 
         ServiceRequest savedRequest =
                 serviceRequestRepository.save(
                         serviceRequest
                 );
 
-
-        // Customer must NOT receive phone number.
 
         return toResponse(
                 savedRequest,
@@ -198,20 +306,18 @@ public class BookingService {
     public ServiceRequestResponse getRequestById(
             Long requestId,
             Long userId,
-            String role) {
+            String role
+    ) {
 
         ServiceRequest request =
                 findRequest(requestId);
 
 
-        // ========================================================
+        // --------------------------------------------------------
         // ADMIN
-        // ========================================================
+        // --------------------------------------------------------
 
         if ("ROLE_ADMIN".equals(role)) {
-
-            // Admin can view any request,
-            // but must NOT receive customer phone.
 
             return toResponse(
                     request,
@@ -220,17 +326,15 @@ public class BookingService {
         }
 
 
-        // ========================================================
+        // --------------------------------------------------------
         // CUSTOMER
-        // ========================================================
+        // --------------------------------------------------------
 
         if ("ROLE_CUSTOMER".equals(role)) {
 
-            /*
-             * Customer can only view their own request.
-             */
-
-            if (!request.getCustomerId().equals(userId)) {
+            if (!request.getCustomerId().equals(
+                    userId
+            )) {
 
                 throw new ResponseStatusException(
                         HttpStatus.FORBIDDEN,
@@ -239,8 +343,6 @@ public class BookingService {
             }
 
 
-            // Customer must never receive phone.
-
             return toResponse(
                     request,
                     false
@@ -248,18 +350,15 @@ public class BookingService {
         }
 
 
-        // ========================================================
+        // --------------------------------------------------------
         // PROVIDER
-        // ========================================================
+        // --------------------------------------------------------
 
         if ("ROLE_PROVIDER".equals(role)) {
 
-            /*
-             * Provider can only view requests assigned
-             * to that provider.
-             */
-
-            if (!request.getProviderId().equals(userId)) {
+            if (!request.getProviderId().equals(
+                    userId
+            )) {
 
                 throw new ResponseStatusException(
                         HttpStatus.FORBIDDEN,
@@ -268,14 +367,8 @@ public class BookingService {
             }
 
 
-            /*
-             * Provider can see phone only after the request
-             * has been accepted or completed.
-             */
-
             boolean canSeePhone =
-                    "ACCEPTED".equals(request.getStatus())
-                            || "COMPLETED".equals(request.getStatus());
+                    canProviderSeePhone(request);
 
 
             return toResponse(
@@ -298,7 +391,8 @@ public class BookingService {
 
     @Transactional(readOnly = true)
     public List<ServiceRequestResponse> getCustomerRequests(
-            Long customerId) {
+            Long customerId
+    ) {
 
         return serviceRequestRepository
                 .findByCustomerIdOrderByCreatedAtDesc(
@@ -321,23 +415,20 @@ public class BookingService {
 
     @Transactional(readOnly = true)
     public List<ServiceRequestResponse> getProviderRequests(
-            Long providerId) {
+            Long providerId
+    ) {
 
         return serviceRequestRepository
                 .findByProviderIdOrderByCreatedAtDesc(
                         providerId
                 )
                 .stream()
-                .map(request -> {
-
-                    boolean canSeePhone =
-                            canProviderSeePhone(request);
-
-                    return toResponse(
-                            request,
-                            canSeePhone
-                    );
-                })
+                .map(request ->
+                        toResponse(
+                                request,
+                                canProviderSeePhone(request)
+                        )
+                )
                 .toList();
     }
 
@@ -349,7 +440,8 @@ public class BookingService {
     @Transactional(readOnly = true)
     public List<ServiceRequestResponse> getProviderRequestsByStatus(
             Long providerId,
-            String status) {
+            String status
+    ) {
 
         String normalizedStatus =
                 normalizeStatus(status);
@@ -361,16 +453,12 @@ public class BookingService {
                         normalizedStatus
                 )
                 .stream()
-                .map(request -> {
-
-                    boolean canSeePhone =
-                            canProviderSeePhone(request);
-
-                    return toResponse(
-                            request,
-                            canSeePhone
-                    );
-                })
+                .map(request ->
+                        toResponse(
+                                request,
+                                canProviderSeePhone(request)
+                        )
+                )
                 .toList();
     }
 
@@ -381,7 +469,8 @@ public class BookingService {
 
     public ServiceRequestResponse cancelRequest(
             Long requestId,
-            Long customerId) {
+            Long customerId
+    ) {
 
         ServiceRequest request =
                 findRequest(requestId);
@@ -424,7 +513,8 @@ public class BookingService {
 
     public ServiceRequestResponse acceptRequest(
             Long requestId,
-            Long providerId) {
+            Long providerId
+    ) {
 
         ServiceRequest request =
                 findRequest(requestId);
@@ -453,8 +543,6 @@ public class BookingService {
                         request
                 );
 
-
-        // Provider can now see customer phone.
 
         return toResponse(
                 updatedRequest,
@@ -469,7 +557,8 @@ public class BookingService {
 
     public ServiceRequestResponse rejectRequest(
             Long requestId,
-            Long providerId) {
+            Long providerId
+    ) {
 
         ServiceRequest request =
                 findRequest(requestId);
@@ -498,8 +587,6 @@ public class BookingService {
                         request
                 );
 
-
-        // Rejected request -> no phone.
 
         return toResponse(
                 updatedRequest,
@@ -514,7 +601,8 @@ public class BookingService {
 
     public ServiceRequestResponse completeRequest(
             Long requestId,
-            Long providerId) {
+            Long providerId
+    ) {
 
         ServiceRequest request =
                 findRequest(requestId);
@@ -544,8 +632,6 @@ public class BookingService {
                 );
 
 
-        // Provider can still see customer phone.
-
         return toResponse(
                 updatedRequest,
                 true
@@ -558,7 +644,8 @@ public class BookingService {
     // ============================================================
 
     private ServiceRequest findRequest(
-            Long requestId) {
+            Long requestId
+    ) {
 
         return serviceRequestRepository
                 .findById(requestId)
@@ -577,9 +664,12 @@ public class BookingService {
 
     private void validateCustomer(
             ServiceRequest request,
-            Long customerId) {
+            Long customerId
+    ) {
 
-        if (!request.getCustomerId().equals(customerId)) {
+        if (!request.getCustomerId().equals(
+                customerId
+        )) {
 
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
@@ -595,9 +685,12 @@ public class BookingService {
 
     private void validateProvider(
             ServiceRequest request,
-            Long providerId) {
+            Long providerId
+    ) {
 
-        if (!request.getProviderId().equals(providerId)) {
+        if (!request.getProviderId().equals(
+                providerId
+        )) {
 
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
@@ -608,12 +701,13 @@ public class BookingService {
 
 
     // ============================================================
-    // VALIDATE STATUS TRANSITION
+    // STATUS TRANSITION VALIDATION
     // ============================================================
 
     private void validateTransition(
             ServiceRequest request,
-            String targetStatus) {
+            String targetStatus
+    ) {
 
         String currentStatus =
                 normalizeStatus(
@@ -625,7 +719,9 @@ public class BookingService {
 
             case "ACCEPTED" -> {
 
-                if (!"PENDING".equals(currentStatus)) {
+                if (!"PENDING".equals(
+                        currentStatus
+                )) {
 
                     throw new ResponseStatusException(
                             HttpStatus.BAD_REQUEST,
@@ -637,7 +733,9 @@ public class BookingService {
 
             case "REJECTED" -> {
 
-                if (!"PENDING".equals(currentStatus)) {
+                if (!"PENDING".equals(
+                        currentStatus
+                )) {
 
                     throw new ResponseStatusException(
                             HttpStatus.BAD_REQUEST,
@@ -649,7 +747,9 @@ public class BookingService {
 
             case "CANCELLED" -> {
 
-                if (!"PENDING".equals(currentStatus)) {
+                if (!"PENDING".equals(
+                        currentStatus
+                )) {
 
                     throw new ResponseStatusException(
                             HttpStatus.BAD_REQUEST,
@@ -661,7 +761,9 @@ public class BookingService {
 
             case "COMPLETED" -> {
 
-                if (!"ACCEPTED".equals(currentStatus)) {
+                if (!"ACCEPTED".equals(
+                        currentStatus
+                )) {
 
                     throw new ResponseStatusException(
                             HttpStatus.BAD_REQUEST,
@@ -685,11 +787,13 @@ public class BookingService {
 
     private void updateStatus(
             ServiceRequest request,
-            String status) {
+            String status
+    ) {
 
         request.setStatus(
                 status
         );
+
 
         request.setUpdatedAt(
                 OffsetDateTime.now()
@@ -702,7 +806,8 @@ public class BookingService {
     // ============================================================
 
     private String normalizeStatus(
-            String status) {
+            String status
+    ) {
 
         if (status == null
                 || status.isBlank()) {
@@ -740,10 +845,15 @@ public class BookingService {
     // ============================================================
 
     private boolean canProviderSeePhone(
-            ServiceRequest request) {
+            ServiceRequest request
+    ) {
 
-        return "ACCEPTED".equals(request.getStatus())
-                || "COMPLETED".equals(request.getStatus());
+        return "ACCEPTED".equals(
+                request.getStatus()
+        )
+                || "COMPLETED".equals(
+                request.getStatus()
+        );
     }
 
 
@@ -753,16 +863,11 @@ public class BookingService {
 
     private ServiceRequestResponse toResponse(
             ServiceRequest request,
-            boolean includePhone) {
+            boolean includePhone
+    ) {
 
         String customerPhone = null;
 
-
-        /*
-         * Phone is fetched from user-service ONLY
-         * when the caller has already been authorized
-         * to see it.
-         */
 
         if (includePhone) {
 
@@ -792,6 +897,10 @@ public class BookingService {
                 request.getLatitude(),
 
                 request.getLongitude(),
+
+                request.getRequestedStartAt(),
+
+                request.getRequestedEndAt(),
 
                 request.getStatus(),
 

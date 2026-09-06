@@ -1,17 +1,20 @@
 package com.serviceconnect.provider.controller;
 
-import com.serviceconnect.provider.dto.request.ProviderAvailabilityActiveRequest;
 import com.serviceconnect.provider.dto.request.ProviderAvailabilityRequest;
 import com.serviceconnect.provider.dto.response.ProviderAvailabilityResponse;
 import com.serviceconnect.provider.service.ProviderAvailabilityService;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,59 +26,78 @@ public class ProviderAvailabilityController {
 
     private final ProviderAvailabilityService availabilityService;
 
+
     // ============================================================
-    // PROVIDER - CREATE
+    // PROVIDER - CREATE AVAILABILITY
     // ============================================================
 
     @PostMapping("/{providerId}/availability")
     @PreAuthorize("hasRole('PROVIDER')")
     public ResponseEntity<ProviderAvailabilityResponse> create(
-            @PathVariable @Positive Long providerId,
-            @AuthenticationPrincipal Jwt jwt,
-            @Valid @RequestBody
-            ProviderAvailabilityRequest request
+            @PathVariable
+            @Positive
+            Long providerId,
+
+            @Valid
+            @RequestBody
+            ProviderAvailabilityRequest request,
+
+            @AuthenticationPrincipal
+            Jwt jwt
     ) {
+
+        Long userId =
+                Long.parseLong(jwt.getSubject());
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(
                         availabilityService.create(
                                 providerId,
-                                getAuthenticatedUserId(jwt),
+                                userId,
                                 request
                         )
                 );
     }
 
+
     // ============================================================
     // PROVIDER - GET OWN AVAILABILITY
-    // Includes inactive
     // ============================================================
 
-    @GetMapping("/{providerId}/availability/manage")
+    @GetMapping("/{providerId}/availability")
     @PreAuthorize("hasRole('PROVIDER')")
-    public ResponseEntity<List<ProviderAvailabilityResponse>>
-    getOwnAvailability(
-            @PathVariable @Positive Long providerId,
-            @AuthenticationPrincipal Jwt jwt
+    public ResponseEntity<List<ProviderAvailabilityResponse>> getOwn(
+            @PathVariable
+            @Positive
+            Long providerId,
+
+            @AuthenticationPrincipal
+            Jwt jwt
     ) {
+
+        Long userId =
+                Long.parseLong(jwt.getSubject());
 
         return ResponseEntity.ok(
                 availabilityService.getProviderAvailability(
                         providerId,
-                        getAuthenticatedUserId(jwt)
+                        userId
                 )
         );
     }
 
+
     // ============================================================
-    // CUSTOMER - GET ACTIVE AVAILABILITY
+    // CUSTOMER / ADMIN - GET ACTIVE AVAILABILITY
     // ============================================================
 
-    @GetMapping("/{providerId}/availability")
-    public ResponseEntity<List<ProviderAvailabilityResponse>>
-    getActiveAvailability(
-            @PathVariable @Positive Long providerId
+    @GetMapping("/{providerId}/availability/active")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN')")
+    public ResponseEntity<List<ProviderAvailabilityResponse>> getActive(
+            @PathVariable
+            @Positive
+            Long providerId
     ) {
 
         return ResponseEntity.ok(
@@ -85,65 +107,68 @@ public class ProviderAvailabilityController {
         );
     }
 
+
     // ============================================================
-    // PROVIDER - UPDATE
+    // PROVIDER - UPDATE AVAILABILITY
     // ============================================================
 
-    @PutMapping("/availability/{availabilityId}")
+    @PutMapping("/{providerId}/availability/{availabilityId}")
     @PreAuthorize("hasRole('PROVIDER')")
     public ResponseEntity<ProviderAvailabilityResponse> update(
-            @PathVariable @Positive Long availabilityId,
-            @AuthenticationPrincipal Jwt jwt,
-            @Valid @RequestBody
-            ProviderAvailabilityRequest request
+            @PathVariable
+            @Positive
+            Long providerId,
+
+            @PathVariable
+            @Positive
+            Long availabilityId,
+
+            @Valid
+            @RequestBody
+            ProviderAvailabilityRequest request,
+
+            @AuthenticationPrincipal
+            Jwt jwt
     ) {
+
+        Long userId =
+                Long.parseLong(jwt.getSubject());
 
         return ResponseEntity.ok(
                 availabilityService.update(
                         availabilityId,
-                        getAuthenticatedUserId(jwt),
+                        userId,
                         request
                 )
         );
     }
 
-    // ============================================================
-    // PROVIDER - ENABLE / DISABLE
-    // ============================================================
-
-    @PatchMapping("/availability/{availabilityId}/active")
-    @PreAuthorize("hasRole('PROVIDER')")
-    public ResponseEntity<ProviderAvailabilityResponse>
-    setActive(
-            @PathVariable @Positive Long availabilityId,
-            @AuthenticationPrincipal Jwt jwt,
-            @Valid @RequestBody
-            ProviderAvailabilityActiveRequest request
-    ) {
-
-        return ResponseEntity.ok(
-                availabilityService.setActive(
-                        availabilityId,
-                        getAuthenticatedUserId(jwt),
-                        request.active()
-                )
-        );
-    }
 
     // ============================================================
-    // PROVIDER - DELETE
+    // PROVIDER - DELETE AVAILABILITY
     // ============================================================
 
-    @DeleteMapping("/availability/{availabilityId}")
+    @DeleteMapping("/{providerId}/availability/{availabilityId}")
     @PreAuthorize("hasRole('PROVIDER')")
     public ResponseEntity<Void> delete(
-            @PathVariable @Positive Long availabilityId,
-            @AuthenticationPrincipal Jwt jwt
+            @PathVariable
+            @Positive
+            Long providerId,
+
+            @PathVariable
+            @Positive
+            Long availabilityId,
+
+            @AuthenticationPrincipal
+            Jwt jwt
     ) {
+
+        Long userId =
+                Long.parseLong(jwt.getSubject());
 
         availabilityService.delete(
                 availabilityId,
-                getAuthenticatedUserId(jwt)
+                userId
         );
 
         return ResponseEntity
@@ -151,38 +176,38 @@ public class ProviderAvailabilityController {
                 .build();
     }
 
+
     // ============================================================
-    // JWT USER ID
+    // PROVIDER - ENABLE / DISABLE AVAILABILITY
     // ============================================================
 
-    private Long getAuthenticatedUserId(
+    @PatchMapping("/{providerId}/availability/{availabilityId}/active")
+    @PreAuthorize("hasRole('PROVIDER')")
+    public ResponseEntity<ProviderAvailabilityResponse> setActive(
+            @PathVariable
+            @Positive
+            Long providerId,
+
+            @PathVariable
+            @Positive
+            Long availabilityId,
+
+            @RequestParam
+            boolean active,
+
+            @AuthenticationPrincipal
             Jwt jwt
     ) {
 
-        if (jwt == null ||
-                jwt.getSubject() == null ||
-                jwt.getSubject().isBlank()) {
+        Long userId =
+                Long.parseLong(jwt.getSubject());
 
-            throw new org.springframework.web.server
-                    .ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED,
-                    "Authenticated user is required"
-            );
-        }
-
-        try {
-
-            return Long.valueOf(
-                    jwt.getSubject()
-            );
-
-        } catch (NumberFormatException ex) {
-
-            throw new org.springframework.web.server
-                    .ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED,
-                    "Invalid authenticated user"
-            );
-        }
+        return ResponseEntity.ok(
+                availabilityService.setActive(
+                        availabilityId,
+                        userId,
+                        active
+                )
+        );
     }
 }
