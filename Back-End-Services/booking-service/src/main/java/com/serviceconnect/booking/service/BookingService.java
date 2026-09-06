@@ -10,6 +10,7 @@ import com.serviceconnect.booking.repository.ServiceRequestRepository;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +23,38 @@ import java.util.List;
 @RequiredArgsConstructor
 @Transactional
 public class BookingService {
+
+    // ============================================================
+    // BOOKING STATUS CONSTANTS
+    // ============================================================
+
+    private static final String STATUS_PENDING =
+            "PENDING";
+
+    private static final String STATUS_ACCEPTED =
+            "ACCEPTED";
+
+    private static final String STATUS_REJECTED =
+            "REJECTED";
+
+    private static final String STATUS_CANCELLED =
+            "CANCELLED";
+
+    private static final String STATUS_COMPLETED =
+            "COMPLETED";
+
+
+    // ============================================================
+    // DATABASE CONSTRAINT NAME
+    // ============================================================
+
+    private static final String BOOKING_OVERLAP_CONSTRAINT =
+            "ex_service_requests_no_provider_overlap";
+
+
+    // ============================================================
+    // DEPENDENCIES
+    // ============================================================
 
     private final ServiceRequestRepository serviceRequestRepository;
 
@@ -39,6 +72,7 @@ public class BookingService {
     public ServiceRequestResponse createServiceRequest(
             Long customerId,
             String authorizationHeader,
+            String idempotencyKey,
             CreateServiceRequest request
     ) {
 
@@ -70,7 +104,6 @@ public class BookingService {
                         request.catalogItemId(),
                         authorizationHeader
                 );
-
 
         if (catalogItem == null) {
 
@@ -172,7 +205,6 @@ public class BookingService {
                         authorizationHeader
                 );
 
-
         if (!providerAvailable) {
 
             throw new ResponseStatusException(
@@ -183,12 +215,11 @@ public class BookingService {
 
 
         // --------------------------------------------------------
-        // CREATE REQUEST
+        // CREATE SERVICE REQUEST
         // --------------------------------------------------------
 
         OffsetDateTime now =
                 OffsetDateTime.now();
-
 
         ServiceRequest serviceRequest =
                 new ServiceRequest();
@@ -228,6 +259,32 @@ public class BookingService {
         );
 
 
+        // --------------------------------------------------------
+        // PRICE SNAPSHOT
+        //
+        // Capture the catalog price at booking creation time.
+        // Future catalog price changes must not affect this booking.
+        // --------------------------------------------------------
+
+        if (catalogItem.price() == null
+                || catalogItem.price().signum() < 0) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Catalog item has an invalid price"
+            );
+        }
+
+
+        serviceRequest.setPriceSnapshot(
+                catalogItem.price()
+        );
+
+
+        // --------------------------------------------------------
+        // REQUEST DETAILS
+        // --------------------------------------------------------
+
         serviceRequest.setDescription(
                 request.description()
         );
@@ -263,11 +320,11 @@ public class BookingService {
 
 
         // --------------------------------------------------------
-        // INITIAL STATUS
+        // INITIAL STATE
         // --------------------------------------------------------
 
         serviceRequest.setStatus(
-                "PENDING"
+                STATUS_PENDING
         );
 
 
@@ -275,21 +332,68 @@ public class BookingService {
                 now
         );
 
-
         serviceRequest.setUpdatedAt(
                 now
         );
 
 
         // --------------------------------------------------------
-        // SAVE
+        // APPLICATION-LEVEL OVERLAP CHECK
+        //
+        // This provides a fast predictable conflict response.
+        // The database exclusion constraint remains the final
+        // concurrency protection.
         // --------------------------------------------------------
 
-        ServiceRequest savedRequest =
-                serviceRequestRepository.save(
-                        serviceRequest
+        boolean overlappingBooking =
+                serviceRequestRepository.existsOverlappingActiveBooking(
+                        request.providerId(),
+                        request.requestedStartAt(),
+                        requestedEndAt
                 );
 
+        if (overlappingBooking) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Provider time slot is already booked"
+            );
+        }
+
+
+        // --------------------------------------------------------
+        // SAVE
+        //
+        // saveAndFlush is intentional so the PostgreSQL exclusion
+        // constraint is evaluated immediately.
+        // --------------------------------------------------------
+
+        ServiceRequest savedRequest;
+
+        try {
+
+            savedRequest =
+                    serviceRequestRepository.saveAndFlush(
+                            serviceRequest
+                    );
+
+        } catch (DataIntegrityViolationException exception) {
+
+            if (isBookingOverlapViolation(exception)) {
+
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "Provider time slot is already booked"
+                );
+            }
+
+            throw exception;
+        }
+
+
+        // --------------------------------------------------------
+        // RESPONSE
+        // --------------------------------------------------------
 
         return toResponse(
                 savedRequest,
@@ -342,7 +446,6 @@ public class BookingService {
                 );
             }
 
-
             return toResponse(
                     request,
                     false
@@ -366,14 +469,9 @@ public class BookingService {
                 );
             }
 
-
-            boolean canSeePhone =
-                    canProviderSeePhone(request);
-
-
             return toResponse(
                     request,
-                    canSeePhone
+                    canProviderSeePhone(request)
             );
         }
 
@@ -446,7 +544,6 @@ public class BookingService {
         String normalizedStatus =
                 normalizeStatus(status);
 
-
         return serviceRequestRepository
                 .findByProviderIdAndStatusOrderByCreatedAtDesc(
                         providerId,
@@ -465,6 +562,9 @@ public class BookingService {
 
     // ============================================================
     // CUSTOMER - CANCEL REQUEST
+    //
+    // PENDING  -> CANCELLED
+    // ACCEPTED -> CANCELLED only before start time
     // ============================================================
 
     public ServiceRequestResponse cancelRequest(
@@ -476,21 +576,32 @@ public class BookingService {
                 findRequest(requestId);
 
 
+        // --------------------------------------------------------
+        // CUSTOMER OWNERSHIP
+        // --------------------------------------------------------
+
         validateCustomer(
                 request,
                 customerId
         );
 
 
-        validateTransition(
-                request,
-                "CANCELLED"
+        // --------------------------------------------------------
+        // VALIDATE CANCELLATION RULES
+        // --------------------------------------------------------
+
+        validateCancellation(
+                request
         );
 
 
+        // --------------------------------------------------------
+        // UPDATE STATUS
+        // --------------------------------------------------------
+
         updateStatus(
                 request,
-                "CANCELLED"
+                STATUS_CANCELLED
         );
 
 
@@ -509,6 +620,8 @@ public class BookingService {
 
     // ============================================================
     // PROVIDER - ACCEPT REQUEST
+    //
+    // PENDING -> ACCEPTED
     // ============================================================
 
     public ServiceRequestResponse acceptRequest(
@@ -526,15 +639,9 @@ public class BookingService {
         );
 
 
-        validateTransition(
+        transition(
                 request,
-                "ACCEPTED"
-        );
-
-
-        updateStatus(
-                request,
-                "ACCEPTED"
+                STATUS_ACCEPTED
         );
 
 
@@ -553,6 +660,8 @@ public class BookingService {
 
     // ============================================================
     // PROVIDER - REJECT REQUEST
+    //
+    // PENDING -> REJECTED
     // ============================================================
 
     public ServiceRequestResponse rejectRequest(
@@ -570,15 +679,9 @@ public class BookingService {
         );
 
 
-        validateTransition(
+        transition(
                 request,
-                "REJECTED"
-        );
-
-
-        updateStatus(
-                request,
-                "REJECTED"
+                STATUS_REJECTED
         );
 
 
@@ -597,6 +700,8 @@ public class BookingService {
 
     // ============================================================
     // PROVIDER - COMPLETE REQUEST
+    //
+    // ACCEPTED -> COMPLETED
     // ============================================================
 
     public ServiceRequestResponse completeRequest(
@@ -614,15 +719,9 @@ public class BookingService {
         );
 
 
-        validateTransition(
+        transition(
                 request,
-                "COMPLETED"
-        );
-
-
-        updateStatus(
-                request,
-                "COMPLETED"
+                STATUS_COMPLETED
         );
 
 
@@ -635,6 +734,209 @@ public class BookingService {
         return toResponse(
                 updatedRequest,
                 true
+        );
+    }
+
+
+    // ============================================================
+    // VALIDATE CANCELLATION RULES
+    // ============================================================
+
+    private void validateCancellation(
+            ServiceRequest request
+    ) {
+
+        String currentStatus =
+                normalizeStatus(
+                        request.getStatus()
+                );
+
+
+        // --------------------------------------------------------
+        // PENDING
+        //
+        // A customer can cancel a pending request at any time.
+        // --------------------------------------------------------
+
+        if (STATUS_PENDING.equals(currentStatus)) {
+            return;
+        }
+
+
+        // --------------------------------------------------------
+        // ACCEPTED
+        //
+        // A customer can cancel an accepted request only before
+        // its scheduled service start time.
+        // --------------------------------------------------------
+
+        if (STATUS_ACCEPTED.equals(currentStatus)) {
+
+            if (request.getRequestedStartAt() == null) {
+
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "Accepted request has no scheduled start time"
+                );
+            }
+
+
+            if (!request.getRequestedStartAt().isAfter(
+                    OffsetDateTime.now()
+            )) {
+
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "Accepted request cannot be cancelled after the service start time"
+                );
+            }
+
+            return;
+        }
+
+
+        // --------------------------------------------------------
+        // REJECTED
+        // --------------------------------------------------------
+
+        if (STATUS_REJECTED.equals(currentStatus)) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Rejected request cannot be cancelled"
+            );
+        }
+
+
+        // --------------------------------------------------------
+        // ALREADY CANCELLED
+        // --------------------------------------------------------
+
+        if (STATUS_CANCELLED.equals(currentStatus)) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Request is already cancelled"
+            );
+        }
+
+
+        // --------------------------------------------------------
+        // COMPLETED
+        // --------------------------------------------------------
+
+        if (STATUS_COMPLETED.equals(currentStatus)) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Completed request cannot be cancelled"
+            );
+        }
+
+
+        // --------------------------------------------------------
+        // UNKNOWN STATE
+        // --------------------------------------------------------
+
+        throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Invalid service request status"
+        );
+    }
+
+
+    // ============================================================
+    // CENTRALIZED STATE TRANSITION
+    // ============================================================
+
+    private void transition(
+            ServiceRequest request,
+            String targetStatus
+    ) {
+
+        String currentStatus =
+                normalizeStatus(
+                        request.getStatus()
+                );
+
+        String normalizedTargetStatus =
+                normalizeStatus(
+                        targetStatus
+                );
+
+
+        if (currentStatus.equals(
+                normalizedTargetStatus
+        )) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Booking is already in status "
+                            + currentStatus
+            );
+        }
+
+
+        boolean validTransition =
+                switch (currentStatus) {
+
+                    case STATUS_PENDING ->
+                            normalizedTargetStatus.equals(
+                                    STATUS_ACCEPTED
+                            )
+                                    || normalizedTargetStatus.equals(
+                                    STATUS_REJECTED
+                            );
+
+                    case STATUS_ACCEPTED ->
+                            normalizedTargetStatus.equals(
+                                    STATUS_COMPLETED
+                            );
+
+                    case STATUS_REJECTED,
+                         STATUS_CANCELLED,
+                         STATUS_COMPLETED ->
+                            false;
+
+                    default ->
+                            false;
+                };
+
+
+        if (!validTransition) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Invalid booking status transition: "
+                            + currentStatus
+                            + " -> "
+                            + normalizedTargetStatus
+            );
+        }
+
+
+        updateStatus(
+                request,
+                normalizedTargetStatus
+        );
+    }
+
+
+    // ============================================================
+    // UPDATE STATUS
+    // ============================================================
+
+    private void updateStatus(
+            ServiceRequest request,
+            String status
+    ) {
+
+        request.setStatus(
+                status
+        );
+
+        request.setUpdatedAt(
+                OffsetDateTime.now()
         );
     }
 
@@ -659,7 +961,7 @@ public class BookingService {
 
 
     // ============================================================
-    // VALIDATE CUSTOMER
+    // VALIDATE CUSTOMER OWNERSHIP
     // ============================================================
 
     private void validateCustomer(
@@ -667,7 +969,8 @@ public class BookingService {
             Long customerId
     ) {
 
-        if (!request.getCustomerId().equals(
+        if (customerId == null
+                || !request.getCustomerId().equals(
                 customerId
         )) {
 
@@ -680,7 +983,7 @@ public class BookingService {
 
 
     // ============================================================
-    // VALIDATE PROVIDER
+    // VALIDATE PROVIDER OWNERSHIP
     // ============================================================
 
     private void validateProvider(
@@ -688,7 +991,8 @@ public class BookingService {
             Long providerId
     ) {
 
-        if (!request.getProviderId().equals(
+        if (providerId == null
+                || !request.getProviderId().equals(
                 providerId
         )) {
 
@@ -701,108 +1005,7 @@ public class BookingService {
 
 
     // ============================================================
-    // STATUS TRANSITION VALIDATION
-    // ============================================================
-
-    private void validateTransition(
-            ServiceRequest request,
-            String targetStatus
-    ) {
-
-        String currentStatus =
-                normalizeStatus(
-                        request.getStatus()
-                );
-
-
-        switch (targetStatus) {
-
-            case "ACCEPTED" -> {
-
-                if (!"PENDING".equals(
-                        currentStatus
-                )) {
-
-                    throw new ResponseStatusException(
-                            HttpStatus.BAD_REQUEST,
-                            "Only pending requests can be accepted"
-                    );
-                }
-            }
-
-
-            case "REJECTED" -> {
-
-                if (!"PENDING".equals(
-                        currentStatus
-                )) {
-
-                    throw new ResponseStatusException(
-                            HttpStatus.BAD_REQUEST,
-                            "Only pending requests can be rejected"
-                    );
-                }
-            }
-
-
-            case "CANCELLED" -> {
-
-                if (!"PENDING".equals(
-                        currentStatus
-                )) {
-
-                    throw new ResponseStatusException(
-                            HttpStatus.BAD_REQUEST,
-                            "Only pending requests can be cancelled"
-                    );
-                }
-            }
-
-
-            case "COMPLETED" -> {
-
-                if (!"ACCEPTED".equals(
-                        currentStatus
-                )) {
-
-                    throw new ResponseStatusException(
-                            HttpStatus.BAD_REQUEST,
-                            "Only accepted requests can be completed"
-                    );
-                }
-            }
-
-
-            default -> throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Invalid target status"
-            );
-        }
-    }
-
-
-    // ============================================================
-    // UPDATE STATUS
-    // ============================================================
-
-    private void updateStatus(
-            ServiceRequest request,
-            String status
-    ) {
-
-        request.setStatus(
-                status
-        );
-
-
-        request.setUpdatedAt(
-                OffsetDateTime.now()
-        );
-    }
-
-
-    // ============================================================
-    // NORMALIZE STATUS
+    // NORMALIZE AND VALIDATE STATUS
     // ============================================================
 
     private String normalizeStatus(
@@ -820,14 +1023,15 @@ public class BookingService {
 
 
         String normalized =
-                status.trim().toUpperCase();
+                status.trim()
+                        .toUpperCase();
 
 
-        if (!normalized.equals("PENDING")
-                && !normalized.equals("ACCEPTED")
-                && !normalized.equals("REJECTED")
-                && !normalized.equals("CANCELLED")
-                && !normalized.equals("COMPLETED")) {
+        if (!STATUS_PENDING.equals(normalized)
+                && !STATUS_ACCEPTED.equals(normalized)
+                && !STATUS_REJECTED.equals(normalized)
+                && !STATUS_CANCELLED.equals(normalized)
+                && !STATUS_COMPLETED.equals(normalized)) {
 
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -848,12 +1052,43 @@ public class BookingService {
             ServiceRequest request
     ) {
 
-        return "ACCEPTED".equals(
-                request.getStatus()
-        )
-                || "COMPLETED".equals(
-                request.getStatus()
-        );
+        String status =
+                request.getStatus();
+
+        return STATUS_ACCEPTED.equals(status)
+                || STATUS_COMPLETED.equals(status);
+    }
+
+
+    // ============================================================
+    // CHECK DATABASE OVERLAP CONSTRAINT VIOLATION
+    // ============================================================
+
+    private boolean isBookingOverlapViolation(
+            DataIntegrityViolationException exception
+    ) {
+
+        Throwable cause =
+                exception;
+
+        while (cause != null) {
+
+            String message =
+                    cause.getMessage();
+
+            if (message != null
+                    && message.contains(
+                    BOOKING_OVERLAP_CONSTRAINT
+            )) {
+
+                return true;
+            }
+
+            cause =
+                    cause.getCause();
+        }
+
+        return false;
     }
 
 
@@ -879,35 +1114,21 @@ public class BookingService {
 
 
         return new ServiceRequestResponse(
-
                 request.getId(),
-
                 request.getCustomerId(),
-
                 request.getProviderId(),
-
                 request.getCatalogItemId(),
-
                 request.getServiceType(),
-
                 request.getDescription(),
-
                 request.getServiceAddress(),
-
                 request.getLatitude(),
-
                 request.getLongitude(),
-
                 request.getRequestedStartAt(),
-
                 request.getRequestedEndAt(),
-
+                request.getPriceSnapshot(),
                 request.getStatus(),
-
                 customerPhone,
-
                 request.getCreatedAt(),
-
                 request.getUpdatedAt()
         );
     }

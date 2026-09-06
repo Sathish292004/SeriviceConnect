@@ -40,28 +40,26 @@ public class BookingController {
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<ServiceRequestResponse> createRequest(
 
+            @RequestHeader(
+                    name = "X-Idempotency-Key"
+            )
+            String idempotencyKey,
+
             @Valid
             @RequestBody
             CreateServiceRequest request,
 
             @AuthenticationPrincipal
-            Jwt jwt) {
+            Jwt jwt,
 
-        /*
-         * Customer ID comes from JWT.
-         * customerId from request body is ignored.
-         */
+            @RequestHeader(
+                    name = "Authorization"
+            )
+            String authorizationHeader
+    ) {
 
         Long customerId =
                 getUserId(jwt);
-
-        /*
-         * Forward the customer's JWT to downstream services.
-         *
-         * Catalog Service may require authentication.
-         */
-        String authorizationHeader =
-                "Bearer " + jwt.getTokenValue();
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -69,6 +67,7 @@ public class BookingController {
                         bookingService.createServiceRequest(
                                 customerId,
                                 authorizationHeader,
+                                idempotencyKey,
                                 request
                         )
                 );
@@ -80,7 +79,9 @@ public class BookingController {
     // ============================================================
 
     @GetMapping("/requests/{requestId}")
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'PROVIDER', 'ADMIN')")
+    @PreAuthorize(
+            "hasAnyRole('CUSTOMER', 'PROVIDER', 'ADMIN')"
+    )
     public ResponseEntity<ServiceRequestResponse> getRequest(
 
             @PathVariable
@@ -88,7 +89,8 @@ public class BookingController {
             Long requestId,
 
             @AuthenticationPrincipal
-            Jwt jwt) {
+            Jwt jwt
+    ) {
 
         Long userId =
                 getUserId(jwt);
@@ -96,22 +98,13 @@ public class BookingController {
         String authority =
                 getAuthority(jwt);
 
-        /*
-         * Provider JWT contains USER ID.
-         *
-         * Booking table stores PROVIDER ID.
-         *
-         * Therefore, convert:
-         *
-         * userId -> providerId
-         */
-
         if ("ROLE_PROVIDER".equals(authority)) {
 
             Long providerId =
-                    providerServiceClient.getProviderIdByUserId(
-                            userId
-                    );
+                    providerServiceClient
+                            .getProviderIdByUserId(
+                                    userId
+                            );
 
             userId = providerId;
         }
@@ -136,7 +129,8 @@ public class BookingController {
     getCustomerRequests(
 
             @AuthenticationPrincipal
-            Jwt jwt) {
+            Jwt jwt
+    ) {
 
         Long customerId =
                 getUserId(jwt);
@@ -159,15 +153,17 @@ public class BookingController {
     getProviderRequests(
 
             @AuthenticationPrincipal
-            Jwt jwt) {
+            Jwt jwt
+    ) {
 
         Long userId =
                 getUserId(jwt);
 
         Long providerId =
-                providerServiceClient.getProviderIdByUserId(
-                        userId
-                );
+                providerServiceClient
+                        .getProviderIdByUserId(
+                                userId
+                        );
 
         return ResponseEntity.ok(
                 bookingService.getProviderRequests(
@@ -190,15 +186,17 @@ public class BookingController {
             String status,
 
             @AuthenticationPrincipal
-            Jwt jwt) {
+            Jwt jwt
+    ) {
 
         Long userId =
                 getUserId(jwt);
 
         Long providerId =
-                providerServiceClient.getProviderIdByUserId(
-                        userId
-                );
+                providerServiceClient
+                        .getProviderIdByUserId(
+                                userId
+                        );
 
         return ResponseEntity.ok(
                 bookingService.getProviderRequestsByStatus(
@@ -213,7 +211,9 @@ public class BookingController {
     // CUSTOMER - CANCEL REQUEST
     // ============================================================
 
-    @PatchMapping("/requests/{requestId}/cancel")
+    @PatchMapping(
+            "/requests/{requestId}/cancel"
+    )
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<ServiceRequestResponse> cancelRequest(
 
@@ -222,7 +222,8 @@ public class BookingController {
             Long requestId,
 
             @AuthenticationPrincipal
-            Jwt jwt) {
+            Jwt jwt
+    ) {
 
         Long customerId =
                 getUserId(jwt);
@@ -241,7 +242,9 @@ public class BookingController {
     // ACCEPT / REJECT / COMPLETE
     // ============================================================
 
-    @PatchMapping("/requests/{requestId}/status")
+    @PatchMapping(
+            "/requests/{requestId}/status"
+    )
     @PreAuthorize("hasRole('PROVIDER')")
     public ResponseEntity<ServiceRequestResponse>
     updateRequestStatus(
@@ -255,28 +258,17 @@ public class BookingController {
             UpdateServiceRequestStatus request,
 
             @AuthenticationPrincipal
-            Jwt jwt) {
+            Jwt jwt
+    ) {
 
         Long userId =
                 getUserId(jwt);
 
-        /*
-         * JWT gives USER ID.
-         *
-         * Booking uses PROVIDER ID.
-         *
-         * Example:
-         *
-         * JWT sub = 7
-         * Provider ID = 3
-         *
-         * Therefore resolve provider ID first.
-         */
-
         Long providerId =
-                providerServiceClient.getProviderIdByUserId(
-                        userId
-                );
+                providerServiceClient
+                        .getProviderIdByUserId(
+                                userId
+                        );
 
         String status =
                 request.status()

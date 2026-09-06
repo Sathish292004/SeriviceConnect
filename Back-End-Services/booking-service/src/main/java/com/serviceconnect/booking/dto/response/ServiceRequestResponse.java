@@ -1,5 +1,6 @@
 package com.serviceconnect.booking.dto.response;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 public record ServiceRequestResponse(
@@ -25,6 +26,8 @@ public record ServiceRequestResponse(
         OffsetDateTime requestedStartAt,
 
         OffsetDateTime requestedEndAt,
+
+        BigDecimal priceSnapshot,
 
         String status,
 
