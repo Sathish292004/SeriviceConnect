@@ -1,0 +1,28 @@
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# Maven build output
+target/
+**/target/
+
+# IntelliJ local files
+shelf/
+workspace.xml
+httpRequests/
+queries/
+dataSources/
+dataSources.local.xml
+
+# Logs
+*.log
+
+# Environment / secrets
+.env
+.env.*
+application-local.properties
+application-local.yml
+
+# OS files
+.DS_Store
+Thumbs.db
