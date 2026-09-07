@@ -5,6 +5,18 @@ spring:
   application:
     name: admin-service
 
+  cloud:
+    loadbalancer:
+      cache:
+        enabled: true
+        ttl: 35s
+        capacity: 256
+      retry:
+        enabled: true
+        max-retries-on-same-service-instance: 0
+        max-retries-on-next-service-instance: 1
+        retry-on-all-operations: false
+
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
@@ -28,7 +40,11 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health
+
+  endpoint:
+    health:
+      show-details: never
 
 services:
   user-service:
@@ -50,4 +66,9 @@ eureka:
   instance:
     prefer-ip-address: true
 
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
 

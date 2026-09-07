@@ -5,10 +5,33 @@ spring:
   application:
     name: provider-service
 
+  cloud:
+    loadbalancer:
+      cache:
+        enabled: true
+        ttl: 35s
+        capacity: 256
+      retry:
+        enabled: true
+        max-retries-on-same-service-instance: 0
+        max-retries-on-next-service-instance: 1
+        retry-on-all-operations: false
+
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+
+  management:
+    endpoints:
+      web:
+        exposure:
+          include: health
+
+    endpoint:
+      health:
+        show-details: never
+
 
   jpa:
     open-in-view: false

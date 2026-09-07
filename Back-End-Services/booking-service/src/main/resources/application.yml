@@ -5,6 +5,18 @@ spring:
   application:
     name: booking-service
 
+  cloud:
+    loadbalancer:
+      cache:
+        enabled: true
+        ttl: 35s
+        capacity: 256
+      retry:
+        enabled: true
+        max-retries-on-same-service-instance: 0
+        max-retries-on-next-service-instance: 1
+        retry-on-all-operations: false
+
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}

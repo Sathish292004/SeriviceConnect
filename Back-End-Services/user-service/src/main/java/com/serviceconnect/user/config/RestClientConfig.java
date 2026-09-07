@@ -1,4 +1,4 @@
-package com.serviceconnect.review.config;
+package com.serviceconnect.user.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
