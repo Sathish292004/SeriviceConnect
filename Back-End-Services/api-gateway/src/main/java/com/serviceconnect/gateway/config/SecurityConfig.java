@@ -144,7 +144,8 @@ public class SecurityConfig {
 
                         .pathMatchers(
                                 "/actuator/health",
-                                "/actuator/health/**"
+                                "/actuator/health/**",
+                                "/api/v1/help-center/**"
                         )
                         .permitAll()
 

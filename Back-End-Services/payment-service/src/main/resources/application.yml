@@ -6,6 +6,9 @@ spring:
   application:
     name: payment-service
 
+  main:
+    register-shutdown-hook: true
+
   lifecycle:
     timeout-per-shutdown-phase: 30s
 
@@ -42,9 +45,13 @@ eureka:
       defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
     register-with-eureka: true
     fetch-registry: true
+    should-unregister-on-shutdown: true
+    registry-fetch-interval-seconds: 5
 
   instance:
     prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
 
 management:
   endpoints:

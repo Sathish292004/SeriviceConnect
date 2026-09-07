@@ -10,22 +10,6 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
 
-  management:
-    endpoints:
-      web:
-        exposure:
-          include: health
-
-    endpoint:
-      health:
-        show-details: never
-
-    springdoc:
-      api-docs:
-        enabled: false
-      swagger-ui:
-        enabled: false
-
   jpa:
     hibernate:
       ddl-auto: validate
@@ -44,19 +28,27 @@ spring:
         enabled: true
         ttl: 35s
         capacity: 256
+
       retry:
         enabled: true
         max-retries-on-same-service-instance: 0
         max-retries-on-next-service-instance: 1
         retry-on-all-operations: false
 
+  main:
+    register-shutdown-hook: true
+
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
 server:
   port: 8081
+  shutdown: graceful
 
 app:
   jwt:
     secret: ${JWT_SECRET}
-    issuer: serviceconnect-auth
+    issuer: ${JWT_ISSUER:serviceconnect-auth}
     access-token-expiration: 900000
 
 auth-service:
@@ -69,9 +61,16 @@ services:
 eureka:
   client:
     service-url:
-      defaultZone: http://localhost:8761/eureka/
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
     register-with-eureka: true
     fetch-registry: true
+    should-unregister-on-shutdown: true
+    registry-fetch-interval-seconds: 5
+
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
 
 brevo:
   api-key: ${BREVO_API_KEY}
@@ -83,3 +82,25 @@ brevo:
 
   sms-api-url: https://api.brevo.com/v3/transactionalSMS/send
   sms-sender: ServiceConnect
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include:
+          - health
+          - metrics
+          - prometheus
+
+  endpoint:
+    health:
+      show-details: never
+
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+  prometheus:
+    metrics:
+      export:
+        enabled: true

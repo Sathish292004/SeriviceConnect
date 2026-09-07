@@ -1,59 +1,173 @@
 server:
   port: 8080
+  shutdown: graceful
 
 spring:
   application:
     name: api-gateway
 
-app:
-  jwt:
-    secret: ${JWT_SECRET}
-    issuer: ${JWT_ISSUER:serviceconnect-auth}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2s
+      connect-timeout: 2s
+
+      lettuce:
+        pool:
+          enabled: true
+          max-active: 32
+          max-idle: 16
+          min-idle: 4
+          max-wait: 1s
 
   cloud:
     gateway:
       server:
         webflux:
+          httpclient:
+            connect-timeout: 3000
+            response-timeout: 5s
+
           discovery:
             locator:
               enabled: false
 
           routes:
 
+            - id: auth-login
+              uri: lb://AUTH-SERVICE
+              predicates:
+                - Path=/api/v1/auth/login
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@ipKeyResolver}"
+                    redis-rate-limiter.replenishRate: 1
+                    redis-rate-limiter.burstCapacity: 60
+                    redis-rate-limiter.requestedTokens: 12
+                - name: CircuitBreaker
+                  args:
+                    name: authCircuitBreaker
+                    fallbackUri: forward:/fallback/service
+
+            - id: auth-register
+              uri: lb://AUTH-SERVICE
+              predicates:
+                - Path=/api/v1/auth/register,/api/v1/auth/register/provider
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@ipKeyResolver}"
+                    redis-rate-limiter.replenishRate: 1
+                    redis-rate-limiter.burstCapacity: 60
+                    redis-rate-limiter.requestedTokens: 12
+                - name: CircuitBreaker
+                  args:
+                    name: authCircuitBreaker
+                    fallbackUri: forward:/fallback/service
+
+            - id: auth-forgot-password
+              uri: lb://AUTH-SERVICE
+              predicates:
+                - Path=/api/v1/auth/password/forgot
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@ipKeyResolver}"
+                    redis-rate-limiter.replenishRate: 1
+                    redis-rate-limiter.burstCapacity: 900
+                    redis-rate-limiter.requestedTokens: 300
+                - name: CircuitBreaker
+                  args:
+                    name: authCircuitBreaker
+                    fallbackUri: forward:/fallback/service
+
+            - id: auth-verification-request
+              uri: lb://AUTH-SERVICE
+              predicates:
+                - Path=/api/v1/auth/verification/email/request,/api/v1/auth/verification/phone/request
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@ipKeyResolver}"
+                    redis-rate-limiter.replenishRate: 1
+                    redis-rate-limiter.burstCapacity: 600
+                    redis-rate-limiter.requestedTokens: 200
+                - name: CircuitBreaker
+                  args:
+                    name: authCircuitBreaker
+                    fallbackUri: forward:/fallback/service
+
             - id: auth-service
               uri: lb://AUTH-SERVICE
               predicates:
                 - Path=/api/v1/auth/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: authCircuitBreaker
+                    fallbackUri: forward:/fallback/service
 
             - id: user-service
               uri: lb://USER-SERVICE
               predicates:
                 - Path=/api/v1/users/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: userCircuitBreaker
+                    fallbackUri: forward:/fallback/service
 
             - id: provider-service
               uri: lb://PROVIDER-SERVICE
               predicates:
                 - Path=/api/v1/providers/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: providerCircuitBreaker
+                    fallbackUri: forward:/fallback/service
 
             - id: booking-service
               uri: lb://BOOKING-SERVICE
               predicates:
                 - Path=/api/v1/bookings/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: bookingCircuitBreaker
+                    fallbackUri: forward:/fallback/service
 
             - id: catalog-service
               uri: lb://CATALOG-SERVICE
               predicates:
                 - Path=/api/v1/catalog/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: catalogCircuitBreaker
+                    fallbackUri: forward:/fallback/service
 
             - id: review-service
               uri: lb://REVIEW-SERVICE
               predicates:
                 - Path=/api/v1/reviews/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: reviewCircuitBreaker
+                    fallbackUri: forward:/fallback/service
 
-            - id: admin-service
+            - id: help-center
               uri: lb://ADMIN-SERVICE
               predicates:
-                - Path=/api/v1/admin/**
+                - Path=/api/v1/help-center/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: adminCircuitBreaker
+                    fallbackUri: forward:/fallback/service
 
     loadbalancer:
       cache:
@@ -67,20 +181,159 @@ app:
         max-retries-on-next-service-instance: 1
         retry-on-all-operations: false
 
+  main:
+    register-shutdown-hook: true
+
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+    issuer: ${JWT_ISSUER:serviceconnect-auth}
+
 eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
-
     register-with-eureka: true
     fetch-registry: true
+    should-unregister-on-shutdown: true
+    registry-fetch-interval-seconds: 5
+
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
 
 management:
   endpoints:
     web:
       exposure:
-        include: health
+        include:
+          - health
+          - metrics
+          - prometheus
 
   endpoint:
     health:
       show-details: never
+
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
+  otlp:
+    metrics:
+      export:
+        enabled: ${OTEL_METRICS_EXPORT_ENABLED:false}
+
+  tracing:
+    sampling:
+      probability: 1.0
+
+  opentelemetry:
+    resource-attributes:
+      service.name: ${spring.application.name}
+      service.namespace: serviceconnect
+      deployment.environment: ${SPRING_PROFILES_ACTIVE:local}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+
+      authCircuitBreaker:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 3s
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        record-exceptions:
+          - java.lang.Exception
+
+      userCircuitBreaker:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 3s
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        record-exceptions:
+          - java.lang.Exception
+
+      providerCircuitBreaker:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 3s
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        record-exceptions:
+          - java.lang.Exception
+
+      bookingCircuitBreaker:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 3s
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        record-exceptions:
+          - java.lang.Exception
+
+      catalogCircuitBreaker:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 3s
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        record-exceptions:
+          - java.lang.Exception
+
+      reviewCircuitBreaker:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 3s
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        record-exceptions:
+          - java.lang.Exception
+
+      adminCircuitBreaker:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 3s
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        record-exceptions:
+          - java.lang.Exception

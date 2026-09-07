@@ -2,8 +2,8 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="
-            http://maven.apache.org/POM/4.0.0
-            https://maven.apache.org/xsd/maven-4.0.0.xsd">
+           http://maven.apache.org/POM/4.0.0
+           https://maven.apache.org/xsd/maven-4.0.0.xsd">
 
     <modelVersion>4.0.0</modelVersion>
 
@@ -17,7 +17,6 @@
     <groupId>com.serviceconnect</groupId>
     <artifactId>api-gateway</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-
     <name>api-gateway</name>
     <description>ServiceConnect API Gateway</description>
 
@@ -28,89 +27,121 @@
 
     <dependencies>
 
-        <!-- ===================================================== -->
-        <!-- Spring Cloud Gateway                                  -->
-        <!-- ===================================================== -->
+        <!-- ========================================================= -->
+        <!-- SPRING CLOUD GATEWAY                                      -->
+        <!-- ========================================================= -->
 
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-gateway-server-webflux</artifactId>
         </dependency>
 
-
-        <!-- ===================================================== -->
-        <!-- Eureka Discovery                                      -->
-        <!-- ===================================================== -->
+        <!-- ========================================================= -->
+        <!-- EUREKA                                                    -->
+        <!-- ========================================================= -->
 
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
         </dependency>
 
-
-        <!-- ===================================================== -->
-        <!-- Spring Cloud LoadBalancer                             -->
-        <!-- ===================================================== -->
+        <!-- ========================================================= -->
+        <!-- LOAD BALANCER                                              -->
+        <!-- ========================================================= -->
 
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-loadbalancer</artifactId>
         </dependency>
 
+        <!-- ========================================================= -->
+        <!-- CIRCUIT BREAKER                                            -->
+        <!-- ========================================================= -->
 
-        <!-- ===================================================== -->
-        <!-- Spring Security                                       -->
-        <!-- ===================================================== -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-circuitbreaker-reactor-resilience4j</artifactId>
+        </dependency>
+
+        <!-- ========================================================= -->
+        <!-- REDIS                                                      -->
+        <!-- ========================================================= -->
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis-reactive</artifactId>
+        </dependency>
+
+        <!-- Redis connection pooling -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-pool2</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>net.logstash.logback</groupId>
+            <artifactId>logstash-logback-encoder</artifactId>
+            <version>8.1</version>
+        </dependency>
+
+        <!-- ========================================================= -->
+        <!-- SECURITY                                                   -->
+        <!-- ========================================================= -->
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
 
-
-        <!-- ===================================================== -->
-        <!-- OAuth2 Resource Server / JWT                          -->
-        <!-- ===================================================== -->
-
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
         </dependency>
 
-
-        <!-- ===================================================== -->
-        <!-- Actuator                                               -->
-        <!-- ===================================================== -->
+        <!-- ========================================================= -->
+        <!-- ACTUATOR + METRICS                                         -->
+        <!-- ========================================================= -->
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
 
-        <!-- ===================================================== -->
-        <!-- Caffeine                                               -->
-        <!-- ===================================================== -->
+        <!-- ========================================================= -->
+        <!-- OPENTELEMETRY                                              -->
+        <!-- ========================================================= -->
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-opentelemetry</artifactId>
+        </dependency>
+
+        <!-- ========================================================= -->
+        <!-- CACHE                                                      -->
+        <!-- ========================================================= -->
 
         <dependency>
             <groupId>com.github.ben-manes.caffeine</groupId>
             <artifactId>caffeine</artifactId>
         </dependency>
 
-
-        <!-- ===================================================== -->
-        <!-- Validation                                             -->
-        <!-- ===================================================== -->
+        <!-- ========================================================= -->
+        <!-- VALIDATION                                                 -->
+        <!-- ========================================================= -->
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
-
-        <!-- ===================================================== -->
-        <!-- Testing                                                -->
-        <!-- ===================================================== -->
+        <!-- ========================================================= -->
+        <!-- TESTING                                                    -->
+        <!-- ========================================================= -->
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -120,10 +151,9 @@
 
     </dependencies>
 
-
-    <!-- ========================================================= -->
-    <!-- Spring Cloud BOM                                          -->
-    <!-- ========================================================= -->
+    <!-- ============================================================= -->
+    <!-- SPRING CLOUD BOM                                              -->
+    <!-- ============================================================= -->
 
     <dependencyManagement>
         <dependencies>
@@ -139,10 +169,9 @@
         </dependencies>
     </dependencyManagement>
 
-
-    <!-- ========================================================= -->
-    <!-- Build                                                     -->
-    <!-- ========================================================= -->
+    <!-- ============================================================= -->
+    <!-- BUILD                                                         -->
+    <!-- ============================================================= -->
 
     <build>
         <plugins>

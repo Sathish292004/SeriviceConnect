@@ -152,6 +152,21 @@
             <optional>true</optional>
         </dependency>
 
+        <dependency>
+            <groupId>net.logstash.logback</groupId>
+            <artifactId>logstash-logback-encoder</artifactId>
+            <version>8.1</version>
+        </dependency>
+
+        <!-- ============================== -->
+        <!-- PROMETHEUS METRICS             -->
+        <!-- ============================== -->
+
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
 
         <!-- ============================== -->
         <!-- TEST -->
