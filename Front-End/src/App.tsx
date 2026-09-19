@@ -80,6 +80,7 @@ const AdminResetPassword = lazy(() => import('@/pages/admin/AdminResetPassword')
 
 // ---- Admin Portal ----
 const AdminDashboard = lazy(() => import('@/pages/admin/AdminDashboard'))
+const AdminCustomers = lazy(() => import('@/pages/admin/AdminCustomers'))
 const AdminProviders = lazy(() => import('@/pages/admin/AdminProviders'))
 const AdminProviderDetail = lazy(() => import('@/pages/admin/AdminProviderDetail'))
 const AdminTickets = lazy(() => import('@/pages/admin/AdminTickets'))
@@ -220,6 +221,7 @@ export default function App() {
         {/* ============================================ */}
         <Route element={<ProtectedRoute requiredRole="ADMIN"><AdminLayout /></ProtectedRoute>}>
           <Route path="admin/dashboard" element={<LazyPage><AdminDashboard /></LazyPage>} />
+          <Route path="admin/customers" element={<LazyPage><AdminCustomers /></LazyPage>} />
           <Route path="admin/providers" element={<LazyPage><AdminProviders /></LazyPage>} />
           <Route path="admin/providers/:id" element={<LazyPage><AdminProviderDetail /></LazyPage>} />
           <Route path="admin/tickets" element={<LazyPage><AdminTickets /></LazyPage>} />

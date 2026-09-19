@@ -1,130 +1,283 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Edit2, Trash2 } from 'lucide-react'
+import { Edit2, Trash2, Star, CheckCircle2, MessageSquare, ArrowLeft } from 'lucide-react'
 import { reviewApi } from '@/api/review'
 import { bookingApi } from '@/api/booking'
 import { useAuthStore } from '@/store/authStore'
 import { StarRating } from '@/components/shared/StarRating'
 import { Pagination } from '@/components/shared/Pagination'
+import { Modal } from '@/components/shared/Modal'
+import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog'
 import { LoadingState, ErrorState, EmptyState } from '@/components/shared/UxStates'
 import { formatDate } from '@/utils/formatters'
+import type { Review } from '@/types'
 
 export default function CustomerReviews() {
   const user = useAuthStore((s) => s.user)
   const qc = useQueryClient()
   const [searchParams] = useSearchParams()
   const bookingIdParam = searchParams.get('bookingId')
+
   const [page, setPage] = useState(0)
-  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editingReview, setEditingReview] = useState<Review | null>(null)
   const [editRating, setEditRating] = useState(5)
   const [editComment, setEditComment] = useState('')
+
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null)
+
   const [newRating, setNewRating] = useState(5)
   const [newComment, setNewComment] = useState('')
 
+  // Fetch booking if query param present
   const { data: bookingData } = useQuery({
-    queryKey: ['booking', bookingIdParam],
+    queryKey: ['booking', 'for-review', bookingIdParam],
     queryFn: () => bookingApi.getById(Number(bookingIdParam)),
     select: (r) => r.data,
     enabled: !!bookingIdParam,
   })
 
+  // Fetch customer's past reviews
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['reviews', 'customer', user?.id, page],
     queryFn: () => reviewApi.getByCustomer(user!.id, { page, size: 10 }),
     select: (r) => r.data,
-    enabled: !!user,
+    enabled: !!user?.id,
   })
 
   const createMutation = useMutation({
-    mutationFn: () => reviewApi.create({
-      bookingId: Number(bookingIdParam),
-      providerId: bookingData?.providerId ?? 0,
-      rating: newRating,
-      comment: newComment || undefined
-    }),
-    onSuccess: () => { toast.success('Review submitted!'); qc.invalidateQueries({ queryKey: ['reviews'] }) },
-    onError: () => toast.error('Failed to submit review. You may have already reviewed this booking.'),
+    mutationFn: () =>
+      reviewApi.create({
+        bookingId: Number(bookingIdParam),
+        providerId: bookingData?.providerId ?? 0,
+        rating: newRating,
+        comment: newComment.trim() || undefined,
+      }),
+    onSuccess: () => {
+      toast.success('Review published successfully!')
+      setNewComment('')
+      setNewRating(5)
+      qc.invalidateQueries({ queryKey: ['reviews'] })
+    },
+    onError: () =>
+      toast.error('Failed to submit review. You may have already reviewed this appointment.'),
   })
 
   const updateMutation = useMutation({
-    mutationFn: (id: number) => reviewApi.update(id, { rating: editRating, comment: editComment || undefined }),
-    onSuccess: () => { toast.success('Review updated'); setEditingId(null); qc.invalidateQueries({ queryKey: ['reviews'] }) },
-    onError: () => toast.error('Failed to update review'),
+    mutationFn: (id: number) =>
+      reviewApi.update(id, {
+        rating: editRating,
+        comment: editComment.trim() || undefined,
+      }),
+    onSuccess: () => {
+      toast.success('Review updated successfully!')
+      setEditingReview(null)
+      qc.invalidateQueries({ queryKey: ['reviews'] })
+    },
+    onError: () => toast.error('Failed to update review.'),
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => reviewApi.delete(id),
-    onSuccess: () => { toast.success('Review deleted'); qc.invalidateQueries({ queryKey: ['reviews'] }) },
-    onError: () => toast.error('Failed to delete review'),
+    onSuccess: () => {
+      toast.success('Review deleted.')
+      setDeleteTargetId(null)
+      qc.invalidateQueries({ queryKey: ['reviews'] })
+    },
+    onError: () => toast.error('Failed to delete review.'),
   })
 
   const reviews = data?.content ?? []
 
-  return (
-    <div className="max-w-2xl space-y-6">
-      <h1 className="text-2xl font-bold text-[#0F172A]">My Reviews</h1>
+  const openEdit = (rev: Review) => {
+    setEditingReview(rev)
+    setEditRating(rev.rating)
+    setEditComment(rev.comment ?? '')
+  }
 
+  return (
+    <div className="max-w-3xl space-y-6">
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+          My Ratings & Reviews
+        </h1>
+        <p className="text-xs sm:text-sm text-slate-500 mt-1">
+          Share your feedback on completed services to help the community.
+        </p>
+      </div>
+
+      {/* Write a Review Card if bookingId parameter is provided */}
       {bookingIdParam && (
-        <div className="sc-card p-6 space-y-4">
-          <h2 className="text-base font-semibold text-[#0F172A]">Write a Review for Booking #{bookingIdParam}</h2>
-          <div>
-            <label className="form-label">Rating</label>
-            <StarRating value={newRating} onChange={setNewRating} size="lg" />
+        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm space-y-4">
+          <div className="flex items-center gap-2 text-blue-600">
+            <MessageSquare className="w-5 h-5" />
+            <h2 className="text-base font-bold text-slate-900">
+              Leave a Review for Booking #{bookingIdParam}
+            </h2>
           </div>
-          <div>
-            <label htmlFor="comment" className="form-label">Comment (optional)</label>
-            <textarea id="comment" value={newComment} onChange={(e) => setNewComment(e.target.value)} className="sc-input min-h-[80px]" placeholder="Share your experience…" />
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Your Rating
+            </label>
+            <div className="pt-1">
+              <StarRating value={newRating} onChange={setNewRating} size="lg" />
+            </div>
           </div>
-          <button onClick={() => createMutation.mutate()} disabled={createMutation.isPending || !bookingData} className="sc-btn-primary text-sm">
-            {createMutation.isPending ? 'Submitting…' : 'Submit Review'}
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Detailed Feedback (Optional)
+            </label>
+            <textarea
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              placeholder="How was the pro's quality of work, punctuality, and professionalism?"
+              className="w-full p-3.5 rounded-xl border border-slate-200 text-sm text-slate-800 placeholder-slate-400 min-h-[90px] focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
+            />
+          </div>
+
+          <button
+            onClick={() => createMutation.mutate()}
+            disabled={createMutation.isPending || !bookingData}
+            className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-sm transition-all disabled:opacity-50"
+          >
+            {createMutation.isPending ? 'Submitting...' : 'Publish Review'}
           </button>
         </div>
       )}
 
-      {isLoading ? <LoadingState message="Loading reviews…" /> : error ? (
-        <ErrorState message="Failed to load reviews." action={{ label: 'Retry', onClick: () => refetch() }} />
-      ) : reviews.length === 0 ? (
-        <EmptyState title="No reviews yet" message="Complete a booking to leave your first review." />
-      ) : (
-        <div className="space-y-3">
-          {reviews.map((r) => (
-            <div key={r.id} className="sc-card p-4">
-              {editingId === r.id ? (
-                <div className="space-y-3">
-                  <StarRating value={editRating} onChange={setEditRating} />
-                  <textarea value={editComment} onChange={(e) => setEditComment(e.target.value)} className="sc-input min-h-[60px]" />
-                  <div className="flex gap-2">
-                    <button onClick={() => updateMutation.mutate(r.id)} className="sc-btn-primary text-xs">Save</button>
-                    <button onClick={() => setEditingId(null)} className="sc-btn-outline text-xs">Cancel</button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between mb-2">
+      {/* Existing Reviews List */}
+      <div className="space-y-3">
+        <h2 className="text-base font-bold text-slate-900">Submitted Reviews</h2>
+
+        {isLoading ? (
+          <LoadingState message="Loading your past reviews..." />
+        ) : error ? (
+          <ErrorState
+            message="Failed to retrieve reviews."
+            action={{ label: 'Retry', onClick: () => refetch() }}
+          />
+        ) : reviews.length === 0 ? (
+          <EmptyState
+            title="No reviews submitted yet"
+            message="Complete your appointments to rate and review service professionals."
+          />
+        ) : (
+          <div className="space-y-3.5">
+            {reviews.map((r) => (
+              <div
+                key={r.id}
+                className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm flex flex-col justify-between gap-3"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-2">
                     <div className="flex items-center gap-2">
-                      <StarRating value={r.rating} readonly size="sm" />
-                      <span className="text-xs text-[#94A3B8]">{formatDate(r.createdAt)}</span>
+                      <StarRating value={r.rating} size="sm" />
+                      <span className="text-xs font-bold text-slate-800">{r.rating} / 5</span>
                     </div>
-                    <div className="flex gap-1">
-                      <button onClick={() => { setEditingId(r.id); setEditRating(r.rating); setEditComment(r.comment ?? '') }} className="sc-btn-ghost p-1.5" aria-label="Edit review">
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={() => { if (confirm('Delete this review?')) deleteMutation.mutate(r.id) }} className="sc-btn-ghost p-1.5 text-[#EF4444]" aria-label="Delete review">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                    <span className="text-xs text-slate-400 font-medium">
+                      {formatDate(r.createdAt)}
+                    </span>
                   </div>
-                  {r.comment && <p className="text-sm text-[#0F172A]">{r.comment}</p>}
-                  <p className="text-xs text-[#94A3B8] mt-1">Booking #{r.bookingId}</p>
-                </>
-              )}
+
+                  <p className="text-xs font-medium text-slate-500 mb-1">
+                    Booking #{r.bookingId} · Provider #{r.providerId}
+                  </p>
+
+                  {r.comment && (
+                    <p className="text-sm text-slate-700 leading-relaxed bg-slate-50/75 p-3 rounded-xl border border-slate-100 mt-2">
+                      "{r.comment}"
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    onClick={() => openEdit(r)}
+                    className="p-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                    title="Edit Review"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setDeleteTargetId(r.id)}
+                    className="p-2 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                    title="Delete Review"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            {data && data.totalPages > 1 && (
+              <Pagination page={page} totalPages={data.totalPages} onPageChange={setPage} />
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Edit Review Modal */}
+      <Modal
+        isOpen={!!editingReview}
+        onClose={() => setEditingReview(null)}
+        title="Edit Your Review"
+        description="Update your rating score and feedback comments"
+        maxWidth="md"
+      >
+        <div className="space-y-4 pt-2">
+          <div className="space-y-1">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Rating
+            </label>
+            <div className="pt-1">
+              <StarRating value={editRating} onChange={setEditRating} size="lg" />
             </div>
-          ))}
-          <Pagination page={page} totalPages={data?.totalPages ?? 1} onPageChange={setPage} />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Comment
+            </label>
+            <textarea
+              value={editComment}
+              onChange={(e) => setEditComment(e.target.value)}
+              className="w-full p-3 rounded-xl border border-slate-200 text-sm text-slate-800 min-h-[90px]"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2.5 pt-3">
+            <button
+              onClick={() => setEditingReview(null)}
+              className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-xs font-semibold"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => editingReview && updateMutation.mutate(editingReview.id)}
+              disabled={updateMutation.isPending}
+              className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm"
+            >
+              {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
         </div>
-      )}
+      </Modal>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={!!deleteTargetId}
+        onClose={() => setDeleteTargetId(null)}
+        onConfirm={() => deleteTargetId && deleteMutation.mutate(deleteTargetId)}
+        isLoading={deleteMutation.isPending}
+        title="Delete Review?"
+        message="Are you sure you want to remove your review? This will also remove your rating from the provider's overall score."
+        confirmLabel="Yes, Delete"
+        cancelLabel="Keep Review"
+        variant="danger"
+      />
     </div>
   )
 }

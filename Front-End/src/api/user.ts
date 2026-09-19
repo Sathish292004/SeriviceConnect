@@ -46,6 +46,10 @@ export const userApi = {
   updateSettings: (data: UserSettings) =>
     userServiceClient.put<UserSettings>(`${BASE}/me/settings`, data),
 
+  /** GET /api/users — All user profiles (ADMIN) */
+  getAll: () =>
+    userServiceClient.get<UserProfile[]>(BASE),
+
   /** GET /api/users/:id */
   getById: (id: number) =>
     userServiceClient.get<UserProfile>(`${BASE}/${id}`),

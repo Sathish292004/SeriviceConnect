@@ -6,6 +6,7 @@ import { Shield, Key, LogOut } from 'lucide-react'
 import { authApi } from '@/api/auth'
 import { useAuthStore } from '@/store/authStore'
 import { changePasswordSchema, type ChangePasswordFormValues } from '@/utils/validators'
+import { PasswordInput } from '@/components/shared/PasswordInput'
 import { LoadingState, ErrorState } from '@/components/shared/UxStates'
 
 export default function CustomerSecurity() {
@@ -58,17 +59,17 @@ export default function CustomerSecurity() {
         </h2>
         <div>
           <label htmlFor="currentPassword" className="form-label">Current Password</label>
-          <input id="currentPassword" type="password" {...register('currentPassword')} className="sc-input" />
+          <PasswordInput id="currentPassword" {...register('currentPassword')} />
           {errors.currentPassword && <p className="form-error">{errors.currentPassword.message}</p>}
         </div>
         <div>
           <label htmlFor="newPassword" className="form-label">New Password</label>
-          <input id="newPassword" type="password" {...register('newPassword')} className="sc-input" />
+          <PasswordInput id="newPassword" {...register('newPassword')} />
           {errors.newPassword && <p className="form-error">{errors.newPassword.message}</p>}
         </div>
         <div>
           <label htmlFor="confirmPassword" className="form-label">Confirm New Password</label>
-          <input id="confirmPassword" type="password" {...register('confirmPassword')} className="sc-input" />
+          <PasswordInput id="confirmPassword" {...register('confirmPassword')} />
           {errors.confirmPassword && <p className="form-error">{errors.confirmPassword.message}</p>}
         </div>
         <button type="submit" disabled={changePwMutation.isPending} className="sc-btn-primary text-sm">

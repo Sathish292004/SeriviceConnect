@@ -9,6 +9,7 @@ import {
   registerCustomerSchema,
   type RegisterCustomerFormValues,
 } from '@/utils/validators'
+import { PasswordInput } from '@/components/shared/PasswordInput'
 
 export default function CustomerRegister() {
   const navigate = useNavigate()
@@ -155,12 +156,10 @@ export default function CustomerRegister() {
           <label htmlFor="password" className="form-label">
             Password
           </label>
-          <input
+          <PasswordInput
             id="password"
-            type="password"
             autoComplete="new-password"
             placeholder="••••••••"
-            className="sc-input"
             aria-invalid={!!errors.password}
             aria-describedby={errors.password ? 'password-error' : undefined}
             {...register('password')}
@@ -177,12 +176,10 @@ export default function CustomerRegister() {
           <label htmlFor="confirmPassword" className="form-label">
             Confirm Password
           </label>
-          <input
+          <PasswordInput
             id="confirmPassword"
-            type="password"
             autoComplete="new-password"
             placeholder="••••••••"
-            className="sc-input"
             aria-invalid={!!errors.confirmPassword}
             aria-describedby={
               errors.confirmPassword ? 'confirmPassword-error' : undefined

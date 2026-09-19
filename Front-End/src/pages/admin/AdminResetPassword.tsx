@@ -9,6 +9,7 @@ import {
   resetPasswordSchema,
   type ResetPasswordFormValues,
 } from '@/utils/validators'
+import { PasswordInput } from '@/components/shared/PasswordInput'
 
 export default function AdminResetPassword() {
   const navigate = useNavigate()
@@ -61,12 +62,10 @@ export default function AdminResetPassword() {
           <label htmlFor="newPassword" className="form-label">
             New Password
           </label>
-          <input
+          <PasswordInput
             id="newPassword"
-            type="password"
             autoComplete="new-password"
             placeholder="••••••••"
-            className="sc-input"
             aria-invalid={!!errors.newPassword}
             aria-describedby={
               errors.newPassword ? 'newPassword-error' : undefined
@@ -84,12 +83,10 @@ export default function AdminResetPassword() {
           <label htmlFor="confirmPassword" className="form-label">
             Confirm Password
           </label>
-          <input
+          <PasswordInput
             id="confirmPassword"
-            type="password"
             autoComplete="new-password"
             placeholder="••••••••"
-            className="sc-input"
             aria-invalid={!!errors.confirmPassword}
             aria-describedby={
               errors.confirmPassword ? 'confirmPassword-error' : undefined

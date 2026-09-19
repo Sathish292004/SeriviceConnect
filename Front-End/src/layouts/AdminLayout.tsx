@@ -2,12 +2,13 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import {
   LayoutDashboard, Users, Headphones, BookOpen, ClipboardList,
-  Menu, X, LogOut, ShieldCheck,
+  Menu, X, LogOut, ShieldCheck, UserCheck,
 } from 'lucide-react'
 import { useAuthStore, selectRole } from '@/store/authStore'
 
 const ADMIN_ITEMS = [
   { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['ADMIN'] },
+  { to: '/admin/customers', icon: UserCheck, label: 'Customers', roles: ['ADMIN'] },
   { to: '/admin/providers', icon: Users, label: 'Providers', roles: ['ADMIN'] },
   { to: '/admin/tickets', icon: Headphones, label: 'Tickets', roles: ['ADMIN'] },
   { to: '/admin/help-center', icon: BookOpen, label: 'Help Center', roles: ['ADMIN'] },

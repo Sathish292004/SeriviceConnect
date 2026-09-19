@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { authApi } from '@/api/auth'
 import { useAuthStore } from '@/store/authStore'
 import { loginSchema, type LoginFormValues } from '@/utils/validators'
+import { PasswordInput } from '@/components/shared/PasswordInput'
 import type { Role } from '@/types'
 
 const EXPECTED_ROLE: Role = 'PROVIDER'
@@ -116,12 +117,10 @@ export default function ProviderLogin() {
               Forgot password?
             </Link>
           </div>
-          <input
+          <PasswordInput
             id="password"
-            type="password"
             autoComplete="current-password"
             placeholder="••••••••"
-            className="sc-input"
             aria-invalid={!!errors.password}
             aria-describedby={errors.password ? 'password-error' : undefined}
             {...register('password')}
