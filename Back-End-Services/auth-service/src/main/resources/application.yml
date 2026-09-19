@@ -73,12 +73,12 @@ eureka:
     lease-expiration-duration-in-seconds: 30
 
 brevo:
-  api-key: ${BREVO_API_KEY}
+  api-key: ${BREVO_API_KEY:dummy-brevo-api-key}
   api-url: https://api.brevo.com/v3/smtp/email
 
   sender:
     name: ServiceConnect
-    email: ${BREVO_SENDER_EMAIL}
+    email: ${BREVO_SENDER_EMAIL:noreply@serviceconnect.com}
 
   sms-api-url: https://api.brevo.com/v3/transactionalSMS/send
   sms-sender: ServiceConnect

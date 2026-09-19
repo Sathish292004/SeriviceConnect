@@ -106,6 +106,16 @@ export const providerApi = {
   addPhoto: (providerId: number, data: AddPhotoRequest) =>
     gatewayClient.post<ProviderPhoto>(`${BASE}/${providerId}/photos`, data),
 
+  /** POST /api/v1/providers/:id/photos/upload — Direct multipart file upload */
+  uploadPhoto: (providerId: number, file: File, displayOrder?: number) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    if (displayOrder !== undefined) {
+      formData.append('displayOrder', String(displayOrder))
+    }
+    return gatewayClient.post<ProviderPhoto>(`${BASE}/${providerId}/photos/upload`, formData)
+  },
+
   /** GET /api/v1/providers/:id/photos (provider view — authenticated) */
   getMyPhotos: (providerId: number) =>
     gatewayClient.get<ProviderPhoto[]>(`${BASE}/${providerId}/photos`),

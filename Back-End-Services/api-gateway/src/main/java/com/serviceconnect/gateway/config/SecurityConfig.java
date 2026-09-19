@@ -152,7 +152,11 @@ public class SecurityConfig {
 
                         .pathMatchers(
                                 HttpMethod.GET,
-                                "/api/v1/reviews/provider/**"
+                                "/api/v1/reviews/provider/**",
+                                "/api/v1/providers/*/public",
+                                "/api/v1/providers/*/photos",
+                                "/api/v1/providers/*/photos/**",
+                                "/api/v1/providers/photos/files/**"
                         )
                         .permitAll()
 

@@ -198,7 +198,6 @@ export default function CustomerProviderDetail() {
                 src={photo.imageUrl}
                 alt="Provider portfolio"
                 className="w-48 h-32 rounded-[8px] object-cover flex-shrink-0 border border-[#E2E8F0]"
-                loading="lazy"
               />
             ))}
           </div>

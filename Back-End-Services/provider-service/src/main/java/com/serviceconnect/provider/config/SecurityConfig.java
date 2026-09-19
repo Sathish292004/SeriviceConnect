@@ -174,7 +174,9 @@ public class SecurityConfig {
                                         "/api/v1/providers",
                                         "/api/v1/providers/*/public",
                                         "/api/v1/providers/*/availability/active",
-                                        "/api/v1/providers/*/photos"
+                                        "/api/v1/providers/*/photos",
+                                        "/api/v1/providers/*/photos/**",
+                                        "/api/v1/providers/photos/files/**"
                                 )
                                 .permitAll()
 

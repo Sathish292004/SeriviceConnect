@@ -97,3 +97,7 @@ dist/
 dist-ssr/
 **/dist-ssr/
 npm-debug.log*
+# Uploaded files
+uploads/
+**/uploads/
+

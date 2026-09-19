@@ -91,7 +91,7 @@ export default function ProviderPublicProfile() {
           <h2 className="text-base font-semibold text-[#0F172A] mb-3">Photos</h2>
           <div className="flex gap-3 overflow-x-auto no-scrollbar">
             {photos.map((photo) => (
-              <img key={photo.id} src={photo.imageUrl} alt="Portfolio" className="w-40 h-28 rounded-[8px] object-cover flex-shrink-0" loading="lazy" />
+              <img key={photo.id} src={photo.imageUrl} alt="Portfolio" className="w-40 h-28 rounded-[8px] object-cover flex-shrink-0" />
             ))}
           </div>
         </div>
