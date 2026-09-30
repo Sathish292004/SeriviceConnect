@@ -2,13 +2,14 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import {
   LayoutDashboard, User, Settings, Briefcase, Clock, CalendarCheck,
-  Image, Menu, X, LogOut, AlertCircle, Compass
+  Image, Menu, X, LogOut, AlertCircle, Compass, MessageSquare
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { Avatar } from '@/components/shared/Avatar'
 
 const SIDEBAR_ITEMS = [
   { to: '/provider/dashboard', icon: LayoutDashboard, label: 'Overview' },
+  { to: '/provider/messages', icon: MessageSquare, label: 'Customer Messages' },
   { to: '/provider/bookings', icon: CalendarCheck, label: 'Job Orders' },
   { to: '/provider/catalog', icon: Briefcase, label: 'Service Offerings' },
   { to: '/provider/availability', icon: Clock, label: 'Working Hours' },

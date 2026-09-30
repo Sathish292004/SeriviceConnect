@@ -21,6 +21,8 @@ public record CatalogItemRequest(
                 message = "Price must be greater than 0")
         BigDecimal price,
 
+        String pricingType,
+
         @Min(value = 1, message = "Duration must be at least 1 minute")
         Integer durationMinutes
 ) {

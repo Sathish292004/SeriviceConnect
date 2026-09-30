@@ -13,6 +13,7 @@ import {
   Calendar,
   CheckCircle2,
   ExternalLink,
+  MessageSquare,
 } from 'lucide-react'
 import { catalogApi } from '@/api/catalog'
 import { providerDiscoveryApi } from '@/api/provider'
@@ -249,7 +250,11 @@ export default function CustomerServices() {
                         {item.category}
                       </span>
                       <span className="text-base sm:text-lg font-black text-slate-900">
-                        {formatPrice(item.price)}
+                        {item.pricingType === 'QUOTE_REQUIRED'
+                          ? 'Get Quote'
+                          : item.pricingType === 'STARTING_FROM'
+                          ? `From ${formatPrice(item.price)}`
+                          : formatPrice(item.price)}
                       </span>
                     </div>
 
@@ -310,14 +315,24 @@ export default function CustomerServices() {
                       </Link>
                     </div>
 
-                    {/* Button 3: Direct Profile / Booking link */}
-                    <Link
-                      to={`/customer/providers/${item.providerId}`}
-                      className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-blue-600 text-white text-xs font-bold transition-all shadow-sm group-hover:bg-blue-600"
-                    >
-                      <span>Provider Profile & Booking</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
+                    {/* Button 3: Direct Profile / Booking / Chat link based on pricing model */}
+                    {item.pricingType === 'STARTING_FROM' || item.pricingType === 'QUOTE_REQUIRED' ? (
+                      <Link
+                        to={`/customer/messages?providerId=${item.providerId}&serviceId=${item.id}`}
+                        className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-sm"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span>Chat with Provider (Get Quote)</span>
+                      </Link>
+                    ) : (
+                      <Link
+                        to={`/customer/providers/${item.providerId}`}
+                        className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-blue-600 text-white text-xs font-bold transition-all shadow-sm group-hover:bg-blue-600"
+                      >
+                        <span>Book This Service</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                    )}
                   </div>
                 </div>
               )

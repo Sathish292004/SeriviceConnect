@@ -8,7 +8,7 @@ import { Modal } from '@/components/shared/Modal'
 import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog'
 import { LoadingState, ErrorState, EmptyState } from '@/components/shared/UxStates'
 import { formatPrice } from '@/utils/formatters'
-import type { CatalogItem } from '@/types'
+import type { CatalogItem, PricingType } from '@/types'
 
 export default function ProviderCatalog() {
   const qc = useQueryClient()
@@ -22,6 +22,7 @@ export default function ProviderCatalog() {
   const [category, setCategory] = useState('General')
   const [price, setPrice] = useState('')
   const [duration, setDuration] = useState('60')
+  const [pricingType, setPricingType] = useState<PricingType>('FIXED')
 
   const { data: provider } = useQuery({
     queryKey: ['provider', 'me'],
@@ -43,6 +44,7 @@ export default function ProviderCatalog() {
         description: description.trim() || undefined,
         category,
         price: Number(price),
+        pricingType,
         durationMinutes: duration ? Number(duration) : undefined,
       }),
     onSuccess: () => {
@@ -60,6 +62,7 @@ export default function ProviderCatalog() {
         description: description.trim() || undefined,
         category,
         price: Number(price),
+        pricingType,
         durationMinutes: duration ? Number(duration) : undefined,
       }),
     onSuccess: () => {
@@ -87,6 +90,7 @@ export default function ProviderCatalog() {
     setCategory('General')
     setPrice('')
     setDuration('60')
+    setPricingType('FIXED')
     setModalOpen(true)
   }
 
@@ -97,6 +101,7 @@ export default function ProviderCatalog() {
     setCategory(item.category)
     setPrice(String(item.price))
     setDuration(item.durationMinutes ? String(item.durationMinutes) : '60')
+    setPricingType(item.pricingType ?? 'FIXED')
     setModalOpen(true)
   }
 
@@ -171,9 +176,20 @@ export default function ProviderCatalog() {
               <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between">
                 <div>
                   <span className="text-[11px] text-slate-400 block">Rate</span>
-                  <span className="text-lg font-black text-slate-900">
-                    {formatPrice(item.price)}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-lg font-black text-slate-900">
+                      {item.pricingType === 'QUOTE_REQUIRED'
+                        ? 'Get Quote'
+                        : item.pricingType === 'STARTING_FROM'
+                        ? `From ${formatPrice(item.price)}`
+                        : formatPrice(item.price)}
+                    </span>
+                    {item.pricingType && item.pricingType !== 'FIXED' && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                        {item.pricingType === 'STARTING_FROM' ? 'Starting From' : 'Quote Required'}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-1.5">
@@ -251,6 +267,21 @@ export default function ProviderCatalog() {
               placeholder="Detail what is included in this service..."
               className="w-full mt-1 p-3 rounded-xl border border-slate-200 text-sm text-slate-800 min-h-[80px]"
             />
+          </div>
+
+          <div>
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Pricing Model
+            </label>
+            <select
+              value={pricingType}
+              onChange={(e) => setPricingType(e.target.value as PricingType)}
+              className="w-full mt-1 p-3 rounded-xl border border-slate-200 text-sm text-slate-800 bg-white"
+            >
+              <option value="FIXED">Fixed Price (Direct Booking)</option>
+              <option value="STARTING_FROM">Starting From (Variable Price — Customer Can Chat for Custom Quote)</option>
+              <option value="QUOTE_REQUIRED">Quote Required (Custom Diagnostic / Chat First)</option>
+            </select>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

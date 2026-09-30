@@ -16,6 +16,8 @@ public record CreateServiceRequest(
         @NotNull(message = "Catalog item ID is required")
         Long catalogItemId,
 
+        Long quoteId,
+
         @NotBlank(message = "Description is required")
         @Size(
                 max = 1000,

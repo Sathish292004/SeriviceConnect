@@ -93,6 +93,13 @@ public class CatalogItem {
 
 
     @Column(
+            name = "pricing_type",
+            length = 30
+    )
+    private String pricingType = "FIXED";
+
+
+    @Column(
             name = "duration_minutes"
     )
     private Integer durationMinutes;

@@ -13,6 +13,8 @@ public record ServiceRequestResponse(
 
         Long catalogItemId,
 
+        Long quoteId,
+
         String serviceType,
 
         String description,

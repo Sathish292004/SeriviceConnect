@@ -76,6 +76,12 @@ public class CatalogItemService {
                 request.durationMinutes()
         );
 
+        item.setPricingType(
+                request.pricingType() != null && !request.pricingType().isBlank()
+                        ? request.pricingType().trim().toUpperCase()
+                        : "FIXED"
+        );
+
         item.setActive(true);
 
 
@@ -647,6 +653,11 @@ public class CatalogItemService {
     private CatalogItemResponse toResponse(
             CatalogItem item) {
 
+        String pType = item.getPricingType();
+        if (pType == null || pType.isBlank()) {
+            pType = "FIXED";
+        }
+
         return new CatalogItemResponse(
                 item.getId(),
                 item.getProviderId(),
@@ -654,6 +665,7 @@ public class CatalogItemService {
                 item.getDescription(),
                 item.getCategory(),
                 item.getPrice(),
+                pType,
                 item.getDurationMinutes(),
                 item.getActive(),
                 item.getCreatedAt(),

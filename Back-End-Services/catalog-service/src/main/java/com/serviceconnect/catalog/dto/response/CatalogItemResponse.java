@@ -17,6 +17,8 @@ public record CatalogItemResponse(
 
         BigDecimal price,
 
+        String pricingType,
+
         Integer durationMinutes,
 
         Boolean active,

@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
   ArrowLeft, MapPin, Clock, Phone, Mail, Calendar,
-  CheckCircle2, X
+  CheckCircle2, X, MessageSquare
 } from 'lucide-react'
 import { providerDiscoveryApi } from '@/api/provider'
 import { catalogApi } from '@/api/catalog'
@@ -177,13 +177,22 @@ export default function CustomerProviderDetail() {
               </div>
             </div>
           </div>
-          <button
-            onClick={() => handleOpenBooking()}
-            disabled={services.length === 0}
-            className="sc-btn-primary text-sm px-6 py-2.5 flex-shrink-0"
-          >
-            Book Appointment
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate(`/customer/messages?providerId=${providerId}`)}
+              className="sc-btn-outline text-sm px-4 py-2.5 flex items-center gap-1.5 flex-shrink-0"
+            >
+              <MessageSquare className="w-4 h-4 text-blue-600" />
+              Chat with Provider
+            </button>
+            <button
+              onClick={() => handleOpenBooking()}
+              disabled={services.length === 0}
+              className="sc-btn-primary text-sm px-6 py-2.5 flex-shrink-0"
+            >
+              Book Appointment
+            </button>
+          </div>
         </div>
       </div>
 
@@ -229,13 +238,29 @@ export default function CustomerProviderDetail() {
                       )}
                     </div>
                     <div className="text-right flex-shrink-0 flex flex-col items-end gap-1.5">
-                      <p className="text-base font-bold text-[#0F172A]">{formatPrice(item.price)}</p>
-                      <button
-                        onClick={() => handleOpenBooking(item)}
-                        className="sc-btn-outline text-xs px-3 py-1"
-                      >
-                        Book This
-                      </button>
+                      <p className="text-base font-bold text-[#0F172A]">
+                        {item.pricingType === 'QUOTE_REQUIRED'
+                          ? 'Get Quote'
+                          : item.pricingType === 'STARTING_FROM'
+                          ? `From ${formatPrice(item.price)}`
+                          : formatPrice(item.price)}
+                      </p>
+                      {item.pricingType === 'STARTING_FROM' || item.pricingType === 'QUOTE_REQUIRED' ? (
+                        <button
+                          onClick={() => navigate(`/customer/messages?providerId=${providerId}&serviceId=${item.id}`)}
+                          className="sc-btn-primary text-xs px-3 py-1 flex items-center gap-1"
+                        >
+                          <MessageSquare className="w-3 h-3" />
+                          Chat with Provider
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleOpenBooking(item)}
+                          className="sc-btn-outline text-xs px-3 py-1"
+                        >
+                          Book This
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

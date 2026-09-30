@@ -235,6 +235,8 @@ export interface ProviderWithDistance extends ProviderPublicView {
 }
 
 // ------ Catalog ----------------------------------------------
+export type PricingType = 'FIXED' | 'STARTING_FROM' | 'QUOTE_REQUIRED'
+
 export interface CatalogItem {
   id: number
   providerId: number
@@ -242,6 +244,7 @@ export interface CatalogItem {
   description?: string
   category: string
   price: number
+  pricingType?: PricingType
   durationMinutes?: number
   active: boolean
   createdAt: string
@@ -253,6 +256,7 @@ export interface CreateCatalogItemRequest {
   description?: string
   category: string
   price: number
+  pricingType?: PricingType
   durationMinutes?: number
 }
 
@@ -270,6 +274,7 @@ export interface ServiceRequest {
   id: number
   customerId: number
   catalogItemId: number
+  quoteId?: number
   providerId: number
   serviceType?: string
   description?: string
@@ -288,6 +293,7 @@ export interface ServiceRequest {
 export interface CreateBookingRequest {
   providerId: number
   catalogItemId: number
+  quoteId?: number
   description?: string
   serviceAddress: string
   latitude?: number
@@ -298,6 +304,70 @@ export interface CreateBookingRequest {
 export interface UpdateBookingStatusRequest {
   status: 'ACCEPTED' | 'REJECTED' | 'COMPLETED'
 }
+
+// ------ Chat & Quotes ----------------------------------------
+export type QuoteStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED'
+
+export interface Message {
+  id: number
+  conversationId: number
+  senderId: number
+  senderRole: string
+  message: string
+  readStatus: boolean
+  createdAt: string
+}
+
+export interface Quote {
+  id: number
+  conversationId: number
+  customerId: number
+  providerId: number
+  catalogItemId?: number
+  serviceName?: string
+  description: string
+  note?: string
+  amount: number
+  currency: string
+  status: QuoteStatus
+  createdAt: string
+  updatedAt: string
+  expiresAt?: string
+}
+
+export interface Conversation {
+  id: number
+  customerId: number
+  providerId: number
+  catalogItemId?: number
+  status: string
+  createdAt: string
+  updatedAt: string
+  lastMessage?: string
+  lastMessageAt?: string
+  otherPartyName: string
+  serviceName?: string
+  messages: Message[]
+  quotes: Quote[]
+}
+
+export interface CreateConversationRequest {
+  providerId: number
+  catalogItemId?: number
+}
+
+export interface SendMessageRequest {
+  message?: string
+  content?: string
+}
+
+export interface CreateQuoteRequest {
+  serviceId?: number
+  description: string
+  amount: number
+  note?: string
+}
+
 
 // ------ Review -----------------------------------------------
 export interface Review {
@@ -421,10 +491,6 @@ export interface SupportMessage {
   createdAt: string
 }
 
-export interface SendMessageRequest {
-  content?: string
-  message?: string
-}
 
 // ------ Help Center ------------------------------------------
 export type HelpCategory =

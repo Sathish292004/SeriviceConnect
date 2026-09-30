@@ -6,6 +6,7 @@ import com.serviceconnect.booking.client.UserServiceClient;
 import com.serviceconnect.booking.dto.request.CreateServiceRequest;
 import com.serviceconnect.booking.dto.response.PageResponse;
 import com.serviceconnect.booking.dto.response.ServiceRequestResponse;
+import com.serviceconnect.booking.entity.Quote;
 import com.serviceconnect.booking.entity.ServiceRequest;
 import com.serviceconnect.booking.repository.ServiceRequestRepository;
 import org.springframework.data.domain.Page;
@@ -66,6 +67,8 @@ public class BookingService {
     private final ProviderServiceClient providerServiceClient;
 
     private final CatalogServiceClient catalogServiceClient;
+
+    private final ChatService chatService;
 
 
     // ============================================================
@@ -329,29 +332,37 @@ public class BookingService {
         // --------------------------------------------------------
         // PRICE SNAPSHOT
         //
-        // Capture the catalog price at booking creation time.
-        // Future catalog price changes must not affect this booking.
+        // If quoteId is provided, validate accepted quote and use agreed price.
+        // Otherwise, capture the catalog price for fixed-price services.
         // --------------------------------------------------------
 
-        if (catalogItem.price() == null
-                || catalogItem.price().signum() < 0) {
+        if (request.quoteId() != null) {
+            Quote quote = chatService.getQuoteForBooking(request.quoteId(), customerId, request.providerId());
+            serviceRequest.setQuoteId(quote.getId());
+            serviceRequest.setPriceSnapshot(quote.getAmount());
+            if (quote.getServiceName() != null && !quote.getServiceName().isBlank()) {
+                serviceRequest.setServiceType(quote.getServiceName().trim());
+            }
+        } else {
+            if (catalogItem.price() == null
+                    || catalogItem.price().signum() < 0) {
 
-            log.error(
-                    "Booking creation failed: catalog item price is invalid, " +
-                            "catalogItemId={}",
-                    request.catalogItemId()
-            );
+                log.error(
+                        "Booking creation failed: catalog item price is invalid, " +
+                                "catalogItemId={}",
+                        request.catalogItemId()
+                );
 
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Catalog item has an invalid price"
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Catalog item has an invalid price"
+                );
+            }
+
+            serviceRequest.setPriceSnapshot(
+                    catalogItem.price()
             );
         }
-
-
-        serviceRequest.setPriceSnapshot(
-                catalogItem.price()
-        );
 
 
         // --------------------------------------------------------
@@ -1370,6 +1381,7 @@ public class BookingService {
                 request.getCustomerId(),
                 request.getProviderId(),
                 request.getCatalogItemId(),
+                request.getQuoteId(),
                 request.getServiceType(),
                 request.getDescription(),
                 request.getServiceAddress(),

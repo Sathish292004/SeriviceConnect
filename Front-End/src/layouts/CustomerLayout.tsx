@@ -2,7 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import {
   LayoutDashboard, User, Settings, Shield, Search, MapPin,
-  CalendarCheck, Star, Headphones, Menu, X, LogOut, Compass
+  CalendarCheck, Star, Headphones, Menu, X, LogOut, Compass, MessageSquare
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { Avatar } from '@/components/shared/Avatar'
@@ -11,6 +11,7 @@ const SIDEBAR_ITEMS = [
   { to: '/customer/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/customer/services', icon: Search, label: 'Find Services' },
   { to: '/customer/providers', icon: MapPin, label: 'Explore Map' },
+  { to: '/customer/messages', icon: MessageSquare, label: 'Messages & Quotes' },
   { to: '/customer/bookings', icon: CalendarCheck, label: 'My Bookings' },
   { to: '/customer/reviews', icon: Star, label: 'My Reviews' },
   { to: '/customer/support', icon: Headphones, label: 'Support & Help' },

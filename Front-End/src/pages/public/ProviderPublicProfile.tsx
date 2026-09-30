@@ -1,6 +1,6 @@
 import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, MapPin, Clock, Phone, Mail } from 'lucide-react'
+import { ArrowLeft, MapPin, Clock, Phone, Mail, MessageSquare } from 'lucide-react'
 import { providerDiscoveryApi } from '@/api/provider'
 import { catalogApi } from '@/api/catalog'
 import { reviewApi } from '@/api/review'
@@ -81,7 +81,15 @@ export default function ProviderPublicProfile() {
               {provider.email && <span className="flex items-center gap-1"><Mail className="w-3.5 h-3.5" /> {provider.email}</span>}
             </div>
           </div>
-          <Link to={`/customer/providers/${providerId}`} className="sc-btn-primary text-sm flex-shrink-0">Book Now</Link>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Link to={`/customer/messages?providerId=${providerId}`} className="sc-btn-outline text-sm flex items-center gap-1.5">
+              <MessageSquare className="w-4 h-4 text-blue-600" />
+              Chat with Provider
+            </Link>
+            <Link to={`/customer/providers/${providerId}`} className="sc-btn-primary text-sm">
+              Book Now
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -112,10 +120,23 @@ export default function ProviderPublicProfile() {
                       {s.durationMinutes && <span className="text-xs text-[#94A3B8] ml-2">{s.durationMinutes} min</span>}
                     </div>
                     <div className="flex items-center gap-3">
-                      <p className="text-sm font-bold text-[#0F172A]">{formatPrice(s.price)}</p>
-                      <Link to={`/customer/providers/${providerId}`} className="sc-btn-outline text-xs px-3 py-1">
-                        Book
-                      </Link>
+                      <p className="text-sm font-bold text-[#0F172A]">
+                        {s.pricingType === 'QUOTE_REQUIRED'
+                          ? 'Get Quote'
+                          : s.pricingType === 'STARTING_FROM'
+                          ? `From ${formatPrice(s.price)}`
+                          : formatPrice(s.price)}
+                      </p>
+                      {s.pricingType === 'STARTING_FROM' || s.pricingType === 'QUOTE_REQUIRED' ? (
+                        <Link to={`/customer/messages?providerId=${providerId}&serviceId=${s.id}`} className="sc-btn-primary text-xs px-3 py-1 flex items-center gap-1">
+                          <MessageSquare className="w-3 h-3" />
+                          Chat with Provider
+                        </Link>
+                      ) : (
+                        <Link to={`/customer/providers/${providerId}`} className="sc-btn-outline text-xs px-3 py-1">
+                          Book
+                        </Link>
+                      )}
                     </div>
                   </div>
                 ))}

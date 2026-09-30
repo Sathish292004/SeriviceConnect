@@ -80,6 +80,16 @@ public class ServiceRequest {
 
 
     // ============================================================
+    // QUOTE (OPTIONAL - FOR VARIABLE PRICED BOOKINGS)
+    // ============================================================
+
+    @Column(
+            name = "quote_id"
+    )
+    private Long quoteId;
+
+
+    // ============================================================
     // SERVICE
     // ============================================================
 
@@ -272,6 +282,11 @@ public class ServiceRequest {
     }
 
 
+    public Long getQuoteId() {
+        return quoteId;
+    }
+
+
     public String getServiceType() {
         return serviceType;
     }
@@ -359,6 +374,13 @@ public class ServiceRequest {
             Long providerId
     ) {
         this.providerId = providerId;
+    }
+
+
+    public void setQuoteId(
+            Long quoteId
+    ) {
+        this.quoteId = quoteId;
     }
 
 

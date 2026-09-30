@@ -54,6 +54,7 @@ const CustomerReviews = lazy(() => import('@/pages/customer/CustomerReviews'))
 const CustomerSupport = lazy(() => import('@/pages/customer/CustomerSupport'))
 const CustomerTickets = lazy(() => import('@/pages/customer/CustomerTickets'))
 const CustomerTicketDetail = lazy(() => import('@/pages/customer/CustomerTicketDetail'))
+const CustomerChat = lazy(() => import('@/pages/customer/CustomerChat'))
 
 // ---- Provider Auth ----
 const ProviderLogin = lazy(() => import('@/pages/provider/ProviderLogin'))
@@ -72,6 +73,7 @@ const ProviderBookings = lazy(() => import('@/pages/provider/ProviderBookings'))
 const ProviderBookingDetail = lazy(() => import('@/pages/provider/ProviderBookingDetail'))
 const ProviderPhotos = lazy(() => import('@/pages/provider/ProviderPhotos'))
 const ProviderSettings = lazy(() => import('@/pages/provider/ProviderSettings'))
+const ProviderChat = lazy(() => import('@/pages/provider/ProviderChat'))
 
 // ---- Admin Auth ----
 const AdminLogin = lazy(() => import('@/pages/admin/AdminLogin'))
@@ -189,6 +191,7 @@ export default function App() {
           <Route path="customer/services" element={<LazyPage><CustomerServices /></LazyPage>} />
           <Route path="customer/providers" element={<LazyPage><CustomerProviders /></LazyPage>} />
           <Route path="customer/providers/:id" element={<LazyPage><CustomerProviderDetail /></LazyPage>} />
+          <Route path="customer/messages" element={<LazyPage><CustomerChat /></LazyPage>} />
           <Route path="customer/bookings" element={<LazyPage><CustomerBookings /></LazyPage>} />
           <Route path="customer/bookings/:id" element={<LazyPage><CustomerBookingDetail /></LazyPage>} />
           <Route path="customer/payment/:bookingId" element={<LazyPage><CustomerPayment /></LazyPage>} />
@@ -207,6 +210,7 @@ export default function App() {
         <Route element={<ProtectedRoute requiredRole="PROVIDER"><ProviderLayout /></ProtectedRoute>}>
           <Route path="provider/onboarding" element={<LazyPage><ProviderOnboarding /></LazyPage>} />
           <Route path="provider/dashboard" element={<LazyPage><ProviderDashboard /></LazyPage>} />
+          <Route path="provider/messages" element={<LazyPage><ProviderChat /></LazyPage>} />
           <Route path="provider/profile" element={<LazyPage><ProviderProfile /></LazyPage>} />
           <Route path="provider/catalog" element={<LazyPage><ProviderCatalog /></LazyPage>} />
           <Route path="provider/availability" element={<LazyPage><ProviderAvailability /></LazyPage>} />
