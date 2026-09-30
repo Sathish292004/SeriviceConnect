@@ -42,7 +42,9 @@ export default function CustomerChat() {
   // Auto-select or create conversation when providerId is passed in URL
   useEffect(() => {
     if (initialProviderId && conversations) {
-      const existing = conversations.find((c) => c.providerId === initialProviderId)
+      const existing = initialServiceId
+        ? conversations.find((c) => c.providerId === initialProviderId && c.catalogItemId === initialServiceId)
+        : conversations.find((c) => c.providerId === initialProviderId)
       if (existing) {
         setActiveConvId(existing.id)
       } else if (!activeConvId) {
@@ -63,7 +65,7 @@ export default function CustomerChat() {
   }, [initialProviderId, initialServiceId, conversations, activeConvId, qc])
 
   // Fetch active conversation details
-  const { data: activeConv, isLoading: loadingActive, refetch: refetchActive } = useQuery({
+  const { data: activeConv, isLoading: loadingActive, isError: activeConvError, refetch: refetchActive } = useQuery({
     queryKey: ['chat', 'conversation', activeConvId],
     queryFn: () => chatApi.getConversation(activeConvId!),
     select: (r) => r.data,
@@ -237,7 +239,7 @@ export default function CustomerChat() {
                         </span>
                       )}
                       <p className="text-xs text-slate-500 truncate mt-1">
-                        {conv.lastMessage || 'Conversation started'}
+                        {conv.lastMessage || 'No messages yet'}
                       </p>
                     </div>
                   </button>
@@ -249,7 +251,19 @@ export default function CustomerChat() {
 
         {/* Right Panel: Chat Area */}
         <div className={`md:col-span-8 flex flex-col ${!activeConvId ? 'hidden md:flex' : 'flex'}`}>
-          {activeConv ? (
+          {activeConvError ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-500">
+              <AlertCircle className="w-10 h-10 text-rose-500 mb-2" />
+              <p className="text-sm font-bold text-slate-800">Unable to load messages. Please try again.</p>
+              <button
+                type="button"
+                onClick={() => refetchActive()}
+                className="mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
+              >
+                Retry
+              </button>
+            </div>
+          ) : activeConv ? (
             <>
               {/* Chat Top Header */}
               <div className="p-4 border-b border-slate-100 flex items-center justify-between gap-3 bg-white">
@@ -426,7 +440,7 @@ export default function CustomerChat() {
                   })
                 ) : (
                   <div className="text-center py-8 text-slate-400 text-xs">
-                    No messages yet. Send an inquiry describing your service need.
+                    No messages yet. Start the conversation.
                   </div>
                 )}
                 <div ref={messagesEndRef} />

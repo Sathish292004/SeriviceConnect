@@ -208,16 +208,6 @@ public class ChatService {
 
         quote = quoteRepository.save(quote);
 
-        // Also add an informative message to the chat
-        Message quoteMessage = new Message();
-        quoteMessage.setConversationId(conversationId);
-        quoteMessage.setSenderId(providerUserId);
-        quoteMessage.setSenderRole("PROVIDER");
-        quoteMessage.setMessage("Created official quote for ₹" + request.amount() + ": " + sanitizedDescription);
-        quoteMessage.setReadStatus(false);
-        quoteMessage.setCreatedAt(OffsetDateTime.now());
-        messageRepository.save(quoteMessage);
-
         conversation.setUpdatedAt(OffsetDateTime.now());
         conversationRepository.save(conversation);
 
@@ -248,16 +238,6 @@ public class ChatService {
         quote.setUpdatedAt(OffsetDateTime.now());
         quote = quoteRepository.save(quote);
 
-        // Notify in chat
-        Message acceptMessage = new Message();
-        acceptMessage.setConversationId(quote.getConversationId());
-        acceptMessage.setSenderId(customerId);
-        acceptMessage.setSenderRole("CUSTOMER");
-        acceptMessage.setMessage("Accepted quote for ₹" + quote.getAmount() + ". Continuing to booking.");
-        acceptMessage.setReadStatus(false);
-        acceptMessage.setCreatedAt(OffsetDateTime.now());
-        messageRepository.save(acceptMessage);
-
         return toQuoteResponse(quote);
     }
 
@@ -284,16 +264,6 @@ public class ChatService {
         quote.setStatus("DECLINED");
         quote.setUpdatedAt(OffsetDateTime.now());
         quote = quoteRepository.save(quote);
-
-        // Notify in chat
-        Message declineMessage = new Message();
-        declineMessage.setConversationId(quote.getConversationId());
-        declineMessage.setSenderId(customerId);
-        declineMessage.setSenderRole("CUSTOMER");
-        declineMessage.setMessage("Declined quote for ₹" + quote.getAmount() + ".");
-        declineMessage.setReadStatus(false);
-        declineMessage.setCreatedAt(OffsetDateTime.now());
-        messageRepository.save(declineMessage);
 
         return toQuoteResponse(quote);
     }
