@@ -16,6 +16,8 @@ public record ConversationResponse(
         String otherPartyName,
         String serviceName,
         List<MessageResponse> messages,
-        List<QuoteResponse> quotes
+        List<QuoteResponse> quotes,
+        String customerName,
+        String providerName
 ) {
 }

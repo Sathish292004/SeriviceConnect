@@ -335,9 +335,14 @@ public class ChatService {
 
         Message lastMsg = messageRepository.findFirstByConversationIdOrderByCreatedAtDesc(c.getId()).orElse(null);
 
-        String otherPartyName = "Provider #" + c.getProviderId();
+        String providerName = providerServiceClient.getProviderBusinessName(c.getProviderId(), authHeader);
+        String customerName = userServiceClient.getUserFullName(c.getCustomerId(), authHeader);
+
+        String otherPartyName;
         if ("PROVIDER".equalsIgnoreCase(viewerRole)) {
-            otherPartyName = "Customer #" + c.getCustomerId();
+            otherPartyName = (customerName != null && !customerName.isBlank()) ? customerName : "Customer";
+        } else {
+            otherPartyName = (providerName != null && !providerName.isBlank()) ? providerName : "Provider";
         }
 
         String serviceName = null;
@@ -361,7 +366,9 @@ public class ChatService {
                 otherPartyName,
                 serviceName,
                 messages,
-                quotes
+                quotes,
+                customerName,
+                providerName
         );
     }
 

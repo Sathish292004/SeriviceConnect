@@ -359,6 +359,30 @@ public class ProviderServiceClient {
 
 
     // ============================================================
+    // GET PROVIDER BUSINESS NAME
+    // ============================================================
+
+    public String getProviderBusinessName(
+            Long providerId,
+            String authorizationHeader
+    ) {
+        if (providerId == null || providerId <= 0) {
+            return null;
+        }
+
+        try {
+            ProviderResponse provider = getProvider(providerId, authorizationHeader);
+            if (provider != null && provider.businessName() != null && !provider.businessName().isBlank()) {
+                return provider.businessName().trim();
+            }
+        } catch (Exception ignored) {
+        }
+
+        return null;
+    }
+
+
+    // ============================================================
     // GET PROVIDER
     // ============================================================
 

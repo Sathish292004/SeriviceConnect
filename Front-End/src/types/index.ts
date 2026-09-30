@@ -349,6 +349,8 @@ export interface Conversation {
   serviceName?: string
   messages: Message[]
   quotes: Quote[]
+  customerName?: string
+  providerName?: string
 }
 
 export interface CreateConversationRequest {

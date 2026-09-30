@@ -92,6 +92,58 @@ public class UserServiceClient {
 
 
     // ============================================================
+    // GET USER FULL NAME
+    // ============================================================
+
+    public record UserProfileDto(
+            Long id,
+            String firstName,
+            String lastName,
+            String phone
+    ) {}
+
+    public String getUserFullName(
+            Long userId,
+            String authorizationHeader
+    ) {
+        if (userId == null || userId <= 0) {
+            return null;
+        }
+
+        String authorization = authorizationHeader;
+        if (authorization == null || authorization.isBlank()) {
+            try {
+                authorization = getAuthorizationHeader();
+            } catch (Exception ignored) {
+            }
+        }
+
+        try {
+            var request = restClientBuilder
+                    .baseUrl(userServiceUrl)
+                    .build()
+                    .get()
+                    .uri("/api/users/{id}", userId);
+
+            if (authorization != null && !authorization.isBlank()) {
+                request.header(HttpHeaders.AUTHORIZATION, authorization);
+            }
+
+            UserProfileDto profile = request.retrieve().body(UserProfileDto.class);
+            if (profile != null) {
+                String first = profile.firstName() != null ? profile.firstName().trim() : "";
+                String last = profile.lastName() != null ? profile.lastName().trim() : "";
+                String full = (first + " " + last).trim();
+                return full.isEmpty() ? null : full;
+            }
+        } catch (Exception ignored) {
+        }
+
+        return null;
+    }
+
+
+    // ============================================================
     // GET AUTHORIZATION HEADER
     // ============================================================
 
