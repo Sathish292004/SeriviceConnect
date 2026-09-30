@@ -438,4 +438,20 @@ public class BookingController {
         return "ROLE_" +
                 role.trim().toUpperCase();
     }
-}
+
+    // ============================================================
+    // REMINDER TRIGGER ENDPOINTS
+    // ============================================================
+
+    @PostMapping("/reminders/trigger")
+    public ResponseEntity<java.util.Map<String, Object>> triggerReminders() {
+        int sent = bookingService.sendBookingReminders();
+        return ResponseEntity.ok(java.util.Map.of("success", true, "remindersSent", sent));
+    }
+
+    @PostMapping("/requests/{id}/reminder")
+    public ResponseEntity<java.util.Map<String, Object>> triggerBookingReminder(@PathVariable Long id) {
+        boolean sent = bookingService.sendReminderForBooking(id);
+        return ResponseEntity.ok(java.util.Map.of("success", sent));
+    }
+}

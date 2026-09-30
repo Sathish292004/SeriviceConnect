@@ -124,6 +124,38 @@ public class ProviderServiceClient {
     }
 
 
+    public Long getUserIdByProviderId(
+            Long providerId
+    ) {
+
+        return getUserIdByProviderId(
+                providerId,
+                getAuthorizationHeader()
+        );
+    }
+
+
+    public Long getUserIdByProviderId(
+            Long providerId,
+            String authorizationHeader
+    ) {
+
+        if (providerId == null || providerId <= 0) {
+            return null;
+        }
+
+        try {
+            ProviderResponse provider = getProvider(providerId, authorizationHeader);
+            if (provider != null) {
+                return provider.userId();
+            }
+        } catch (Exception ignored) {
+        }
+
+        return null;
+    }
+
+
     public Long getProviderIdByUserId(
             Long userId,
             String authorizationHeader

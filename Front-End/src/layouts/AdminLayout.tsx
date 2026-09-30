@@ -5,6 +5,7 @@ import {
   Menu, X, LogOut, ShieldCheck, UserCheck,
 } from 'lucide-react'
 import { useAuthStore, selectRole } from '@/store/authStore'
+import { NotificationBell } from '@/components/shared/NotificationBell'
 
 const ADMIN_ITEMS = [
   { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['ADMIN'] },
@@ -55,6 +56,7 @@ export default function AdminLayout() {
             </NavLink>
           </div>
           <div className="flex items-center gap-3">
+            <NotificationBell />
             <span className="text-sm text-[#64748B] hidden sm:block">{user?.email}</span>
             <button onClick={handleLogout} className="sc-btn-ghost text-xs gap-1.5">
               <LogOut className="w-4 h-4" /> Logout

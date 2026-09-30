@@ -139,6 +139,16 @@ spring:
                     name: bookingCircuitBreaker
                     fallbackUri: forward:/fallback/service
 
+            - id: notification-service
+              uri: lb://BOOKING-SERVICE
+              predicates:
+                - Path=/api/v1/notifications/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: bookingCircuitBreaker
+                    fallbackUri: forward:/fallback/service
+
             - id: catalog-service
               uri: lb://CATALOG-SERVICE
               predicates:

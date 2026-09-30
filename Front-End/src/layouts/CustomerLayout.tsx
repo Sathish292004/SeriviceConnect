@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { Avatar } from '@/components/shared/Avatar'
+import { NotificationBell } from '@/components/shared/NotificationBell'
 
 const SIDEBAR_ITEMS = [
   { to: '/customer/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -62,6 +63,10 @@ export default function CustomerLayout() {
           </div>
 
           <div className="flex items-center gap-3.5">
+            <NotificationBell />
+
+            <div className="h-4 w-px bg-slate-200" />
+
             <div className="flex items-center gap-2.5">
               <Avatar name={user?.email || 'Customer'} size="sm" />
               <div className="hidden sm:flex flex-col text-left">

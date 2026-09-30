@@ -588,3 +588,54 @@ export interface ProviderOnboardingStatus {
   photoAdded: boolean
   status: ProviderStatus
 }
+
+// ------ Notifications ----------------------------------------
+export type NotificationType =
+  | 'CHAT_MESSAGE'
+  | 'QUOTE_CREATED'
+  | 'QUOTE_ACCEPTED'
+  | 'QUOTE_DECLINED'
+  | 'QUOTE_EXPIRED'
+  | 'BOOKING_CREATED'
+  | 'BOOKING_ACCEPTED'
+  | 'BOOKING_DECLINED'
+  | 'BOOKING_CANCELLED'
+  | 'BOOKING_STATUS_CHANGED'
+  | 'BOOKING_COMPLETED'
+  | 'BOOKING_REMINDER'
+  | 'SUPPORT_MESSAGE'
+  | 'SUPPORT_REPLY'
+  | 'REVIEW_RECEIVED'
+  | 'REVIEW_REMINDER'
+  | 'PROVIDER_APPROVED'
+  | 'PROVIDER_REJECTED'
+  | 'PROVIDER_STATUS_CHANGED'
+  | 'NEW_LOGIN'
+  | 'PASSWORD_CHANGED'
+  | 'SECURITY_ALERT'
+
+export interface NotificationItem {
+  id: number
+  recipientUserId: number
+  type: NotificationType
+  title: string
+  message: string
+  relatedEntityType?: string
+  relatedEntityId?: number
+  deepLink?: string
+  read: boolean
+  createdAt: string
+}
+
+export interface UnreadCountResponse {
+  unreadCount: number
+}
+
+export interface PushSubscriptionRequest {
+  endpoint: string
+  keys: {
+    p256dh: string
+    auth: string
+  }
+  userAgent?: string
+}

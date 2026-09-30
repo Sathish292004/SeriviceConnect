@@ -13,6 +13,7 @@ import com.serviceconnect.booking.entity.Quote;
 import com.serviceconnect.booking.repository.ConversationRepository;
 import com.serviceconnect.booking.repository.MessageRepository;
 import com.serviceconnect.booking.repository.QuoteRepository;
+import com.serviceconnect.booking.entity.NotificationType;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +41,7 @@ public class ChatService {
     private final ProviderServiceClient providerServiceClient;
     private final CatalogServiceClient catalogServiceClient;
     private final UserServiceClient userServiceClient;
+    private final NotificationService notificationService;
 
     // ============================================================
     // CONVERSATIONS
@@ -160,6 +162,45 @@ public class ChatService {
         conversation.setUpdatedAt(OffsetDateTime.now());
         conversationRepository.save(conversation);
 
+        // Notify recipient about real message
+        try {
+            if ("CUSTOMER".equalsIgnoreCase(role)) {
+                Long providerUserId = providerServiceClient.getUserIdByProviderId(conversation.getProviderId(), null);
+                if (providerUserId != null && !providerUserId.equals(authenticatedUserId)) {
+                    String customerName = userServiceClient.getUserFullName(authenticatedUserId, null);
+                    if (customerName == null || customerName.isBlank()) customerName = "Customer";
+                    notificationService.createNotification(
+                            providerUserId,
+                            NotificationType.CHAT_MESSAGE,
+                            "New message from " + customerName,
+                            sanitizedMessage,
+                            "CONVERSATION",
+                            conversationId,
+                            "/provider/messages?conversationId=" + conversationId,
+                            "CHAT_MESSAGE_" + message.getId()
+                    );
+                }
+            } else if ("PROVIDER".equalsIgnoreCase(role)) {
+                Long customerId = conversation.getCustomerId();
+                if (customerId != null && !customerId.equals(authenticatedUserId)) {
+                    String providerName = providerServiceClient.getProviderBusinessName(conversation.getProviderId(), null);
+                    if (providerName == null || providerName.isBlank()) providerName = "Provider";
+                    notificationService.createNotification(
+                            customerId,
+                            NotificationType.CHAT_MESSAGE,
+                            "New message from " + providerName,
+                            sanitizedMessage,
+                            "CONVERSATION",
+                            conversationId,
+                            "/customer/messages?conversationId=" + conversationId,
+                            "CHAT_MESSAGE_" + message.getId()
+                    );
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Failed to create chat notification: {}", ex.getMessage());
+        }
+
         return toMessageResponse(message);
     }
 
@@ -211,6 +252,25 @@ public class ChatService {
         conversation.setUpdatedAt(OffsetDateTime.now());
         conversationRepository.save(conversation);
 
+        // Notify customer about new quote
+        try {
+            String providerName = providerServiceClient.getProviderBusinessName(providerId, null);
+            if (providerName == null || providerName.isBlank()) providerName = "Provider";
+            String serviceName = quote.getServiceName() != null ? quote.getServiceName() : "Requested Service";
+            notificationService.createNotification(
+                    conversation.getCustomerId(),
+                    NotificationType.QUOTE_CREATED,
+                    "New Quote Received",
+                    providerName + " sent you a quote for " + serviceName + ".",
+                    "QUOTE",
+                    quote.getId(),
+                    "/customer/messages?conversationId=" + conversationId,
+                    "QUOTE_CREATED_" + quote.getId()
+            );
+        } catch (Exception ex) {
+            log.warn("Failed to create quote notification: {}", ex.getMessage());
+        }
+
         return toQuoteResponse(quote);
     }
 
@@ -238,6 +298,27 @@ public class ChatService {
         quote.setUpdatedAt(OffsetDateTime.now());
         quote = quoteRepository.save(quote);
 
+        // Notify provider about quote acceptance
+        try {
+            Long providerUserId = providerServiceClient.getUserIdByProviderId(quote.getProviderId(), null);
+            if (providerUserId != null) {
+                String customerName = userServiceClient.getUserFullName(customerId, null);
+                if (customerName == null || customerName.isBlank()) customerName = "Customer";
+                notificationService.createNotification(
+                        providerUserId,
+                        NotificationType.QUOTE_ACCEPTED,
+                        "Quote Accepted",
+                        customerName + " accepted your ₹" + quote.getAmount() + " quote.",
+                        "QUOTE",
+                        quote.getId(),
+                        "/provider/messages?conversationId=" + quote.getConversationId(),
+                        "QUOTE_ACCEPTED_" + quote.getId()
+                );
+            }
+        } catch (Exception ex) {
+            log.warn("Failed to create quote accepted notification: {}", ex.getMessage());
+        }
+
         return toQuoteResponse(quote);
     }
 
@@ -264,6 +345,27 @@ public class ChatService {
         quote.setStatus("DECLINED");
         quote.setUpdatedAt(OffsetDateTime.now());
         quote = quoteRepository.save(quote);
+
+        // Notify provider about quote decline
+        try {
+            Long providerUserId = providerServiceClient.getUserIdByProviderId(quote.getProviderId(), null);
+            if (providerUserId != null) {
+                String customerName = userServiceClient.getUserFullName(customerId, null);
+                if (customerName == null || customerName.isBlank()) customerName = "Customer";
+                notificationService.createNotification(
+                        providerUserId,
+                        NotificationType.QUOTE_DECLINED,
+                        "Quote Declined",
+                        customerName + " declined your quote.",
+                        "QUOTE",
+                        quote.getId(),
+                        "/provider/messages?conversationId=" + quote.getConversationId(),
+                        "QUOTE_DECLINED_" + quote.getId()
+                );
+            }
+        } catch (Exception ex) {
+            log.warn("Failed to create quote declined notification: {}", ex.getMessage());
+        }
 
         return toQuoteResponse(quote);
     }

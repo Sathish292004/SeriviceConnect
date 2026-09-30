@@ -14,6 +14,7 @@ import org.springframework.data.domain.Pageable;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import com.serviceconnect.booking.entity.NotificationType;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -69,6 +70,8 @@ public class BookingService {
     private final CatalogServiceClient catalogServiceClient;
 
     private final ChatService chatService;
+
+    private final NotificationService notificationService;
 
 
     // ============================================================
@@ -530,6 +533,40 @@ public class BookingService {
 
 
         // --------------------------------------------------------
+        // NOTIFY PROVIDER
+        // --------------------------------------------------------
+
+        try {
+            Long providerUserId = providerServiceClient.getUserIdByProviderId(
+                    savedRequest.getProviderId(),
+                    authorizationHeader
+            );
+            if (providerUserId != null) {
+                String customerName = userServiceClient.getUserFullName(
+                        customerId,
+                        authorizationHeader
+                );
+                if (customerName == null || customerName.isBlank()) {
+                    customerName = "Customer";
+                }
+                String serviceName = catalogItem != null && catalogItem.name() != null ? catalogItem.name() : "Service";
+                notificationService.createNotification(
+                        providerUserId,
+                        NotificationType.BOOKING_CREATED,
+                        "New Booking",
+                        customerName + " booked " + serviceName + ".",
+                        "BOOKING",
+                        savedRequest.getId(),
+                        "/provider/bookings",
+                        "BOOKING_CREATED_" + savedRequest.getId()
+                );
+            }
+        } catch (Exception ex) {
+            log.warn("Failed to create booking notification: {}", ex.getMessage());
+        }
+
+
+        // --------------------------------------------------------
         // RESPONSE
         // --------------------------------------------------------
 
@@ -787,6 +824,36 @@ public class BookingService {
         );
 
 
+        // --------------------------------------------------------
+        // NOTIFY PROVIDER
+        // --------------------------------------------------------
+
+        try {
+            Long providerUserId = providerServiceClient.getUserIdByProviderId(
+                    updatedRequest.getProviderId(),
+                    null
+            );
+            if (providerUserId != null) {
+                String customerName = userServiceClient.getUserFullName(customerId, null);
+                if (customerName == null || customerName.isBlank()) {
+                    customerName = "Customer";
+                }
+                notificationService.createNotification(
+                        providerUserId,
+                        NotificationType.BOOKING_CANCELLED,
+                        "Booking Cancelled",
+                        customerName + " cancelled the booking.",
+                        "BOOKING",
+                        updatedRequest.getId(),
+                        "/provider/bookings",
+                        "BOOKING_CANCELLED_" + updatedRequest.getId()
+                );
+            }
+        } catch (Exception ex) {
+            log.warn("Failed to create booking cancelled notification: {}", ex.getMessage());
+        }
+
+
         return toResponse(
                 updatedRequest,
                 false
@@ -841,6 +908,33 @@ public class BookingService {
                 previousStatus,
                 updatedRequest.getStatus()
         );
+
+
+        // --------------------------------------------------------
+        // NOTIFY CUSTOMER
+        // --------------------------------------------------------
+
+        try {
+            String providerName = providerServiceClient.getProviderBusinessName(
+                    updatedRequest.getProviderId(),
+                    null
+            );
+            if (providerName == null || providerName.isBlank()) {
+                providerName = "Provider";
+            }
+            notificationService.createNotification(
+                    updatedRequest.getCustomerId(),
+                    NotificationType.BOOKING_ACCEPTED,
+                    "Booking Accepted",
+                    providerName + " accepted your booking.",
+                    "BOOKING",
+                    updatedRequest.getId(),
+                    "/customer/bookings",
+                    "BOOKING_ACCEPTED_" + updatedRequest.getId()
+            );
+        } catch (Exception ex) {
+            log.warn("Failed to create booking accepted notification: {}", ex.getMessage());
+        }
 
 
         return toResponse(
@@ -899,6 +993,33 @@ public class BookingService {
         );
 
 
+        // --------------------------------------------------------
+        // NOTIFY CUSTOMER
+        // --------------------------------------------------------
+
+        try {
+            String providerName = providerServiceClient.getProviderBusinessName(
+                    updatedRequest.getProviderId(),
+                    null
+            );
+            if (providerName == null || providerName.isBlank()) {
+                providerName = "Provider";
+            }
+            notificationService.createNotification(
+                    updatedRequest.getCustomerId(),
+                    NotificationType.BOOKING_DECLINED,
+                    "Booking Declined",
+                    providerName + " declined your booking.",
+                    "BOOKING",
+                    updatedRequest.getId(),
+                    "/customer/bookings",
+                    "BOOKING_DECLINED_" + updatedRequest.getId()
+            );
+        } catch (Exception ex) {
+            log.warn("Failed to create booking declined notification: {}", ex.getMessage());
+        }
+
+
         return toResponse(
                 updatedRequest,
                 false
@@ -953,6 +1074,33 @@ public class BookingService {
                 previousStatus,
                 updatedRequest.getStatus()
         );
+
+
+        // --------------------------------------------------------
+        // NOTIFY CUSTOMER
+        // --------------------------------------------------------
+
+        try {
+            String providerName = providerServiceClient.getProviderBusinessName(
+                    updatedRequest.getProviderId(),
+                    null
+            );
+            if (providerName == null || providerName.isBlank()) {
+                providerName = "Provider";
+            }
+            notificationService.createNotification(
+                    updatedRequest.getCustomerId(),
+                    NotificationType.BOOKING_COMPLETED,
+                    "Service Completed",
+                    "Your service with " + providerName + " has been completed.",
+                    "BOOKING",
+                    updatedRequest.getId(),
+                    "/customer/reviews",
+                    "BOOKING_COMPLETED_" + updatedRequest.getId()
+            );
+        } catch (Exception ex) {
+            log.warn("Failed to create booking completed notification: {}", ex.getMessage());
+        }
 
 
         return toResponse(
@@ -1408,4 +1556,52 @@ public class BookingService {
                 request.getUpdatedAt()
         );
     }
-}
+
+    // ============================================================
+    // BOOKING REMINDERS
+    // ============================================================
+
+    public int sendBookingReminders() {
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime windowEnd = now.plusHours(24);
+        var upcomingBookings = serviceRequestRepository.findUpcomingAcceptedBookings(now, windowEnd);
+        int sent = 0;
+        for (ServiceRequest booking : upcomingBookings) {
+            if (sendReminderForBooking(booking)) {
+                sent++;
+            }
+        }
+        return sent;
+    }
+
+    public boolean sendReminderForBooking(Long bookingId) {
+        ServiceRequest booking = findRequest(bookingId);
+        return sendReminderForBooking(booking);
+    }
+
+    private boolean sendReminderForBooking(ServiceRequest booking) {
+        if (!STATUS_ACCEPTED.equalsIgnoreCase(booking.getStatus())) {
+            log.info("Booking reminder skipped: booking {} status is {}", booking.getId(), booking.getStatus());
+            return false;
+        }
+        String idempotencyKey = "BOOKING_REMINDER_24H_" + booking.getId();
+        try {
+            String providerName = providerServiceClient.getProviderBusinessName(booking.getProviderId(), null);
+            if (providerName == null || providerName.isBlank()) providerName = "Provider";
+            notificationService.createNotification(
+                    booking.getCustomerId(),
+                    NotificationType.BOOKING_REMINDER,
+                    "Booking Reminder",
+                    "Reminder: Your service appointment with " + providerName + " is scheduled for " + booking.getRequestedStartAt().toLocalDate() + ".",
+                    "BOOKING",
+                    booking.getId(),
+                    "/customer/bookings",
+                    idempotencyKey
+            );
+            return true;
+        } catch (Exception ex) {
+            log.warn("Failed to send booking reminder for booking {}: {}", booking.getId(), ex.getMessage());
+            return false;
+        }
+    }
+}

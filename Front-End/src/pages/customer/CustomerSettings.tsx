@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { userApi } from '@/api/user'
+import { pushNotifications } from '@/lib/pushNotifications'
 import { LoadingState, ErrorState } from '@/components/shared/UxStates'
 
 export default function CustomerSettings() {
@@ -25,6 +27,25 @@ export default function CustomerSettings() {
 
   const emailNotif = settings?.emailNotifications ?? true
   const smsNotif = settings?.smsNotifications ?? false
+
+  const [pushEnabled, setPushEnabled] = useState(
+    typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted'
+  )
+
+  const handleTogglePush = async () => {
+    if (!pushEnabled) {
+      const perm = await pushNotifications.requestPermission()
+      if (perm === 'granted') {
+        setPushEnabled(true)
+        toast.success('Browser push notifications enabled')
+      } else {
+        toast.error('Notification permission was not granted')
+      }
+    } else {
+      setPushEnabled(false)
+      toast.info('To completely disable notifications, update permissions in browser settings')
+    }
+  }
 
   return (
     <div className="max-w-2xl">
@@ -60,6 +81,21 @@ export default function CustomerSettings() {
               className={`relative w-11 h-6 rounded-full transition-colors ${smsNotif ? 'bg-[#2563EB]' : 'bg-[#CBD5E1]'}`}
             >
               <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow ${smsNotif ? 'translate-x-5' : ''}`} />
+            </button>
+          </label>
+          <label className="flex items-center justify-between cursor-pointer pt-2 border-t border-slate-100">
+            <div>
+              <p className="text-sm font-medium text-[#0F172A]">Browser & Web Push Notifications</p>
+              <p className="text-xs text-[#64748B]">Receive instant push alerts outside the browser tab for chat and booking updates</p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={pushEnabled}
+              onClick={handleTogglePush}
+              className={`relative w-11 h-6 rounded-full transition-colors ${pushEnabled ? 'bg-[#2563EB]' : 'bg-[#CBD5E1]'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow ${pushEnabled ? 'translate-x-5' : ''}`} />
             </button>
           </label>
         </div>

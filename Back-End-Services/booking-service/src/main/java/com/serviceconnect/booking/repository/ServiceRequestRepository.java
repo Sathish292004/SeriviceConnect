@@ -80,4 +80,15 @@ public interface ServiceRequestRepository
             @Param("requestedEndAt")
             OffsetDateTime requestedEndAt
     );
+
+    @Query("""
+            SELECT sr FROM ServiceRequest sr
+            WHERE sr.status = 'ACCEPTED'
+              AND sr.requestedStartAt >= :now
+              AND sr.requestedStartAt <= :windowEnd
+            """)
+    java.util.List<ServiceRequest> findUpcomingAcceptedBookings(
+            @Param("now") OffsetDateTime now,
+            @Param("windowEnd") OffsetDateTime windowEnd
+    );
 }
