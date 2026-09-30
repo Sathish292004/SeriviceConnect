@@ -74,7 +74,7 @@ const createProviderIcon = (name: string, isSelected: boolean) =>
 
 // Custom Leaflet DivIcon for customer's current location
 const userIcon = new L.DivIcon({
-  className: '',
+  className: 'customer-location-marker',
   html: '<div style="width:18px;height:18px;background:#2563EB;border:3px solid white;border-radius:50%;box-shadow:0 2px 10px rgba(37,99,235,0.8)"></div>',
   iconSize: [18, 18],
   iconAnchor: [9, 9],
@@ -165,58 +165,69 @@ export default function ProviderDiscovery() {
     setLocationStatus('locating')
     setLocationError('')
 
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const lat = pos.coords.latitude
-        const lng = pos.coords.longitude
+    const tryGetPosition = (highAccuracy: boolean) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude
+          const lng = pos.coords.longitude
 
-        // Validate real numeric coordinates
-        if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) {
-          setIsLocating(false)
-          setLocationStatus('error')
-          setLocationError('Unable to get valid coordinates from your browser. Please try again.')
-          setActiveCustomerLocation(null)
-          return
-        }
+          // Validate real numeric coordinates
+          if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) {
+            setIsLocating(false)
+            setLocationStatus('error')
+            setLocationError('Unable to get valid coordinates from your browser. Please try again.')
+            setActiveCustomerLocation(null)
+            return
+          }
 
-        // Explicit geolocation logging requested by diagnosis prompt
-        console.log(`[GEOLOCATION RAW]\nlatitude: ${lat}\nlongitude: ${lng}\naccuracy: ${pos.coords.accuracy} meters\ntimestamp: ${new Date(pos.timestamp).toISOString()}`)
-        if (import.meta.env.DEV) {
-          console.log('[ServiceConnect] Current customer coordinates from browser:', {
+          // Explicit geolocation logging requested by diagnosis prompt
+          console.log(`[GEOLOCATION RAW]\nlatitude: ${lat}\nlongitude: ${lng}\naccuracy: ${pos.coords.accuracy} meters\ntimestamp: ${new Date(pos.timestamp).toISOString()}`)
+          if (import.meta.env.DEV) {
+            console.log('[ServiceConnect] Current customer coordinates from browser:', {
+              latitude: lat,
+              longitude: lng,
+              accuracy: pos.coords.accuracy,
+              source: 'browser',
+            })
+          }
+
+          setActiveCustomerLocation({
             latitude: lat,
             longitude: lng,
-            accuracy: pos.coords.accuracy,
             source: 'browser',
           })
-        }
+          setLocationStatus('granted')
+          setIsLocating(false)
+          setLocationError('')
+        },
+        (err) => {
+          // If high accuracy timed out on non-GPS hardware, retry with standard accuracy
+          if (highAccuracy && err.code === err.TIMEOUT) {
+            console.warn('[GEOLOCATION] High accuracy timed out, falling back to standard accuracy...')
+            tryGetPosition(false)
+            return
+          }
 
-        setActiveCustomerLocation({
-          latitude: lat,
-          longitude: lng,
-          source: 'browser',
-        })
-        setLocationStatus('granted')
-        setIsLocating(false)
-        setLocationError('')
-      },
-      (err) => {
-        console.warn(`[GEOLOCATION ERROR] code: ${err.code}, message: ${err.message}`)
-        setIsLocating(false)
-        setActiveCustomerLocation(null)
-        if (err.code === err.PERMISSION_DENIED) {
-          setLocationStatus('denied')
-          setLocationError('Location permission was denied. Please allow location access to find nearby providers.')
-        } else {
-          setLocationStatus('error')
-          setLocationError('Unable to get your current location. Please try again.')
-        }
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0, // Force fresh position, never cached
-      },
-    )
+          console.warn(`[GEOLOCATION ERROR] code: ${err.code}, message: ${err.message}`)
+          setIsLocating(false)
+          setActiveCustomerLocation(null)
+          if (err.code === err.PERMISSION_DENIED) {
+            setLocationStatus('denied')
+            setLocationError('Location permission was denied. Please allow location access to find nearby providers.')
+          } else {
+            setLocationStatus('error')
+            setLocationError('Unable to get your current location. Please try again.')
+          }
+        },
+        {
+          enableHighAccuracy: highAccuracy,
+          timeout: highAccuracy ? 8000 : 15000,
+          maximumAge: highAccuracy ? 0 : 30000,
+        },
+      )
+    }
+
+    tryGetPosition(true)
   }, [isLocating])
 
   // Sync with URL query parameter '?q='
