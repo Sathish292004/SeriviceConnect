@@ -72,6 +72,9 @@ export function filterByRadius<T extends WithCoordinates>(
  * < 1km: show meters. >= 1km: show km with 1 decimal.
  */
 export function formatDistance(km: number): string {
+  if (km < 0.05) {
+    return 'Nearby (< 50m)'
+  }
   if (km < 1) {
     return `${Math.round(km * 1000)}m away`
   }

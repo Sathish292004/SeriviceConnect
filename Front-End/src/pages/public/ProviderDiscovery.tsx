@@ -13,26 +13,26 @@ import {
   Clock,
   X,
   Filter,
-  CheckCircle2,
   Calendar,
   Sparkles,
+  AlertCircle,
+  RotateCcw,
 } from 'lucide-react'
 import { providerDiscoveryApi } from '@/api/provider'
 import { catalogApi } from '@/api/catalog'
-import { filterByRadius, formatDistance } from '@/lib/haversine'
+import { filterByRadius, formatDistance, haversineDistance } from '@/lib/haversine'
 import { useDebounce } from '@/hooks/useDebounce'
 import { LoadingState, ErrorState, EmptyState } from '@/components/shared/UxStates'
 import { MAJOR_CATEGORIES, POPULAR_SERVICE_SEARCHES } from '@/lib/categories'
 import type { MapViewMode, Coordinates, CatalogItem, ProviderPublicView } from '@/types'
 
 // ============================================================
-// ProviderDiscovery — Primary Service Discovery Page
+// ProviderDiscovery — Find Nearby Providers Using Customer Current Location
 //
-// Allows customers to answer: "What service do you need?"
-// (e.g. AC repair, Mobile repair, Refrigerator, Plumbing)
-// and directly finds nearby verified providers offering that service.
-//
-// Map markers represent PROVIDERS and stay synchronized with list.
+// Customer location comes from browser Geolocation API.
+// No hardcoded provider locations as customer presets.
+// Distance = Customer Current Location -> Provider Location.
+// Map and list stay strictly synchronized.
 // ============================================================
 
 // Custom Leaflet DivIcon for providers
@@ -66,16 +66,10 @@ const createProviderIcon = (name: string, isSelected: boolean) =>
 
 const userIcon = new L.DivIcon({
   className: '',
-  html: '<div style="width:16px;height:16px;background:#2563EB;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(37,99,235,0.6)"></div>',
-  iconSize: [16, 16],
-  iconAnchor: [8, 8],
+  html: '<div style="width:18px;height:18px;background:#2563EB;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(37,99,235,0.7)"></div>',
+  iconSize: [18, 18],
+  iconAnchor: [9, 9],
 })
-
-// Quick reference locations for testing & instant radius filtering
-const PRESET_LOCATIONS: { name: string; label: string; coords: Coordinates }[] = [
-  { name: 'bangalore', label: 'Bangalore (Apex)', coords: { lat: 12.9716, lng: 77.5946 } },
-  { name: 'chennai', label: 'Chennai (SK Services)', coords: { lat: 13.0827, lng: 80.2707 } },
-]
 
 function RecenterButton({ center }: { center: Coordinates }) {
   const map = useMap()
@@ -85,7 +79,7 @@ function RecenterButton({ center }: { center: Coordinates }) {
       className="sc-btn-primary text-xs px-3 py-1.5 absolute top-3 right-3 z-[1000] gap-1 shadow-md"
       aria-label="Recenter map"
     >
-      <Navigation className="w-3.5 h-3.5" /> Recenter
+      <Navigation className="w-3.5 h-3.5" /> Recenter on Me
     </button>
   )
 }
@@ -97,6 +91,16 @@ function MapFocus({ selectedLocation }: { selectedLocation?: { lat: number; lng:
       map.flyTo([selectedLocation.lat, selectedLocation.lng], 14, { duration: 0.8 })
     }
   }, [selectedLocation, map])
+  return null
+}
+
+function MapUserFocus({ userLocation }: { userLocation?: Coordinates | null }) {
+  const map = useMap()
+  useEffect(() => {
+    if (userLocation?.lat && userLocation?.lng) {
+      map.flyTo([userLocation.lat, userLocation.lng], 12, { duration: 1.0 })
+    }
+  }, [userLocation, map])
   return null
 }
 
@@ -113,33 +117,63 @@ export default function ProviderDiscovery() {
 
   const [search, setSearch] = useState(initialSearch)
   const [category, setCategory] = useState('')
-  const [radius, setRadius] = useState<number>(50) // Default 50km
+  const [radius, setRadius] = useState<number>(25) // Default 25 km
   const [viewMode, setViewMode] = useState<MapViewMode>('split')
-  const [userLocation, setUserLocation] = useState<Coordinates | null>({ lat: 12.9716, lng: 77.5946 }) // Default Bangalore
-  const [locationName, setLocationName] = useState('Bangalore')
+
+  // Customer current location state (null by default — obtained via Geolocation API)
+  const [userLocation, setUserLocation] = useState<Coordinates | null>(null)
+  const [isLocating, setIsLocating] = useState(false)
+  const [locationStatus, setLocationStatus] = useState<'idle' | 'locating' | 'granted' | 'denied' | 'error'>('idle')
   const [locationError, setLocationError] = useState('')
+
   const [selectedProviderId, setSelectedProviderId] = useState<number | null>(null)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const debouncedSearch = useDebounce(search, 300)
 
-  // Try GPS geolocation on mount
-  useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude })
-          setLocationName('My GPS Location')
-          setLocationError('')
-        },
-        () => {
-          setLocationError('GPS access denied; using Bangalore reference.')
-        },
-        { enableHighAccuracy: false, timeout: 5000 },
-      )
-    }
-  }, [])
+  // Request customer's device/browser location
+  const handleGetCurrentLocation = useCallback(() => {
+    if (isLocating) return
 
-  // If query param 'q' changes in URL, update search state
+    if (!navigator.geolocation) {
+      setLocationStatus('error')
+      setLocationError('Geolocation is not supported by your browser.')
+      return
+    }
+
+    setIsLocating(true)
+    setLocationStatus('locating')
+    setLocationError('')
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const coords: Coordinates = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        }
+        setUserLocation(coords)
+        setLocationStatus('granted')
+        setIsLocating(false)
+        setLocationError('')
+      },
+      (err) => {
+        setIsLocating(false)
+        if (err.code === err.PERMISSION_DENIED) {
+          setLocationStatus('denied')
+          setLocationError('Location permission was denied. Please allow location access to find nearby providers.')
+        } else {
+          setLocationStatus('error')
+          setLocationError('Unable to get your current location. Please try again.')
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      },
+    )
+  }, [isLocating])
+
+  // Sync with URL query parameter '?q='
   useEffect(() => {
     const q = searchParams.get('q')
     if (q && q !== search) {
@@ -147,7 +181,7 @@ export default function ProviderDiscovery() {
     }
   }, [searchParams])
 
-  // Fetch approved providers from real PostgreSQL database
+  // Fetch all approved providers from real PostgreSQL database
   const {
     data: providerData,
     isLoading: providersLoading,
@@ -181,17 +215,15 @@ export default function ProviderDiscovery() {
 
   const hasFilter = !!(debouncedSearch.trim() || category)
 
-  // Find which providers offer services matching the search term or category
+  // Find provider IDs that match the service search query or category
   const matchingProviderIds = useMemo(() => {
-    if (!hasFilter) return null // null means show all
+    if (!hasFilter) return null
     const items = catalogData?.content ?? []
     const q = debouncedSearch.toLowerCase().trim()
 
     const matched = items.filter((item) => {
       if (!item.active) return false
-      // Category filter
       if (category && item.category !== category) return false
-      // Search term matching
       if (q) {
         const nameMatch = item.name.toLowerCase().includes(q)
         const descMatch = item.description?.toLowerCase().includes(q) ?? false
@@ -204,7 +236,7 @@ export default function ProviderDiscovery() {
     return new Set(matched.map((item) => item.providerId))
   }, [catalogData, debouncedSearch, category, hasFilter])
 
-  // Get matched service names and prices for a specific provider
+  // Matched services per provider
   const getMatchedServicesForProvider = useCallback(
     (providerId: number) => {
       const items = providerCatalogMap.get(providerId) ?? []
@@ -236,16 +268,19 @@ export default function ProviderDiscovery() {
     [providerCatalogMap, debouncedSearch, category, hasFilter],
   )
 
-  // Filtered and enriched providers (service match + radius calculation)
+  // Filtered and enriched providers:
+  // 1. Service / catalog match
+  // 2. Direct business name / city match
+  // 3. Customer current location + radius filtering via Haversine distance
   const filteredProviders: EnrichedProvider[] = useMemo(() => {
     let providers = providerData?.content ?? []
 
-    // 1. Service/catalog filter
+    // 1. Service catalog match
     if (matchingProviderIds !== null) {
       providers = providers.filter((p) => matchingProviderIds.has(p.id))
     }
 
-    // 2. Also match provider business name / city directly
+    // 2. Business name / city search fallback
     if (debouncedSearch.trim() && matchingProviderIds !== null) {
       const q = debouncedSearch.toLowerCase().trim()
       const allProviders = providerData?.content ?? []
@@ -257,32 +292,47 @@ export default function ProviderDiscovery() {
       providers = [...providers, ...nameMatched]
     }
 
-    // 3. Location and radius filtering
-    if (userLocation && radius > 0) {
-      const withDist = filterByRadius(providers, userLocation.lat, userLocation.lng, radius)
-      return withDist.map((p) => {
-        const info = getMatchedServicesForProvider(p.id)
-        return {
-          ...p,
-          matchedServices: info.services,
-          matchedCategories: info.categories,
-          lowestPrice: info.lowestPrice,
-        }
-      })
+    // 3. Distance calculation and radius filtering based on CUSTOMER CURRENT LOCATION
+    if (userLocation) {
+      if (radius > 0) {
+        // Strict radius filtering
+        const withDist = filterByRadius(providers, userLocation.lat, userLocation.lng, radius)
+        return withDist.map((p) => {
+          const info = getMatchedServicesForProvider(p.id)
+          return {
+            ...p,
+            matchedServices: info.services,
+            matchedCategories: info.categories,
+            lowestPrice: info.lowestPrice,
+          }
+        })
+      } else {
+        // "All Distances" (radius === 0): calculate distance without filtering out
+        return providers
+          .map((p) => {
+            const info = getMatchedServicesForProvider(p.id)
+            let dist: number | undefined = undefined
+            if (p.latitude != null && p.longitude != null) {
+              dist = haversineDistance(userLocation.lat, userLocation.lng, p.latitude, p.longitude)
+            }
+            return {
+              ...p,
+              distanceKm: dist,
+              matchedServices: info.services,
+              matchedCategories: info.categories,
+              lowestPrice: info.lowestPrice,
+            }
+          })
+          .sort((a, b) => (a.distanceKm ?? 999999) - (b.distanceKm ?? 999999))
+      }
     }
 
-    // If radius is 0 ("All distances") or userLocation is null:
+    // If userLocation is NOT yet obtained: show matching providers without distance
     return providers.map((p) => {
       const info = getMatchedServicesForProvider(p.id)
-      let dist: number | undefined = undefined
-      if (userLocation && p.latitude != null && p.longitude != null) {
-        // Compute distance even without filtering
-        const rad = filterByRadius([p], userLocation.lat, userLocation.lng, 99999)
-        dist = rad[0]?.distanceKm
-      }
       return {
         ...p,
-        distanceKm: dist,
+        distanceKm: undefined,
         matchedServices: info.services,
         matchedCategories: info.categories,
         lowestPrice: info.lowestPrice,
@@ -297,9 +347,15 @@ export default function ProviderDiscovery() {
     getMatchedServicesForProvider,
   ])
 
-  const mapCenter: [number, number] = userLocation
-    ? [userLocation.lat, userLocation.lng]
-    : [12.9716, 77.5946]
+  // Initial map center: customer location if available, otherwise first provider coords or default
+  const mapCenter: [number, number] = useMemo(() => {
+    if (userLocation) return [userLocation.lat, userLocation.lng]
+    const firstWithCoords = filteredProviders.find((p) => p.latitude != null && p.longitude != null)
+    if (firstWithCoords?.latitude && firstWithCoords?.longitude) {
+      return [firstWithCoords.latitude, firstWithCoords.longitude]
+    }
+    return [13.0827, 80.2707] // Fallback center
+  }, [userLocation, filteredProviders])
 
   const isLoading = providersLoading || catalogLoading
 
@@ -308,14 +364,19 @@ export default function ProviderDiscovery() {
     return `₹${price}`
   }
 
+  // Result summary text
   const resultTitle = useMemo(() => {
-    if (!hasFilter) {
-      return `${filteredProviders.length} Verified Provider${filteredProviders.length !== 1 ? 's' : ''}`
+    const count = filteredProviders.length
+    const providerWord = count === 1 ? 'provider' : 'providers'
+
+    if (hasFilter) {
+      const parts: string[] = []
+      if (debouncedSearch.trim()) parts.push(`"${debouncedSearch.trim()}"`)
+      if (category) parts.push(category)
+      return `${count} ${providerWord} offering ${parts.join(' in ')}`
     }
-    const parts: string[] = []
-    if (debouncedSearch.trim()) parts.push(`"${debouncedSearch.trim()}"`)
-    if (category) parts.push(category)
-    return `${filteredProviders.length} provider${filteredProviders.length !== 1 ? 's' : ''} offering ${parts.join(' in ')}`
+
+    return `${count} Verified ${count === 1 ? 'Provider' : 'Providers'}`
   }, [filteredProviders.length, debouncedSearch, category, hasFilter])
 
   return (
@@ -336,7 +397,7 @@ export default function ProviderDiscovery() {
             What service do you need?
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Search for any repair or maintenance work to instantly locate nearby verified providers.
+            Search for any repair or maintenance service to find verified providers near your current location.
           </p>
         </div>
         <Link
@@ -425,44 +486,49 @@ export default function ProviderDiscovery() {
         })}
       </div>
 
-      {/* Location / Radius & View Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-sm text-xs">
-        {/* Location selector */}
+      {/* LOCATION & RADIUS CONTROLS (CUSTOMER-CENTRIC) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-sm text-xs">
+        {/* Customer Location Control */}
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1 text-slate-500 font-medium">
+          <div className="flex items-center gap-1.5 text-slate-500 font-medium">
             <MapPin className="w-4 h-4 text-blue-600" />
             <span>Location:</span>
           </div>
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-            {PRESET_LOCATIONS.map((loc) => {
-              const isSelected = locationName === loc.name || locationName.includes(loc.label.split(' ')[0])
-              return (
-                <button
-                  key={loc.name}
-                  type="button"
-                  onClick={() => {
-                    setUserLocation(loc.coords)
-                    setLocationName(loc.name)
-                  }}
-                  className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
-                    isSelected
-                      ? 'bg-white text-blue-700 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {loc.label}
-                </button>
-              )
-            })}
-          </div>
 
-          {/* Radius selector */}
-          <div className="flex items-center gap-1 ml-2">
+          {locationStatus === 'granted' && userLocation ? (
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl font-semibold bg-green-50 text-green-700 border border-green-200 text-xs">
+              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+              <span>Using Your Current Location</span>
+              <button
+                type="button"
+                onClick={handleGetCurrentLocation}
+                disabled={isLocating}
+                className="ml-1 text-slate-400 hover:text-slate-600 underline font-normal text-[11px]"
+                title="Update location"
+              >
+                (Update)
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleGetCurrentLocation}
+              disabled={isLocating}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-all text-xs shadow-sm"
+              aria-label="Use My Current Location"
+            >
+              <Navigation className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin' : ''}`} />
+              <span>{isLocating ? 'Getting your location...' : 'Use My Current Location'}</span>
+            </button>
+          )}
+
+          {/* Radius Selector */}
+          <div className="flex items-center gap-1.5 ml-2">
             <span className="text-slate-500 font-medium">Radius:</span>
             <select
               value={radius}
               onChange={(e) => setRadius(Number(e.target.value))}
-              className="py-1 px-2.5 rounded-lg border border-slate-200 bg-white font-semibold text-slate-700 focus:outline-none focus:border-blue-600"
+              className="py-1.5 px-2.5 rounded-lg border border-slate-200 bg-white font-semibold text-slate-700 focus:outline-none focus:border-blue-600"
               aria-label="Search Radius"
             >
               <option value={5}>Within 5 km</option>
@@ -470,7 +536,6 @@ export default function ProviderDiscovery() {
               <option value={25}>Within 25 km</option>
               <option value={50}>Within 50 km</option>
               <option value={100}>Within 100 km</option>
-              <option value={500}>Within 500 km</option>
               <option value={0}>All Distances</option>
             </select>
           </div>
@@ -509,6 +574,25 @@ export default function ProviderDiscovery() {
           </button>
         </div>
       </div>
+
+      {/* Non-blocking Location Alert Banner (Denied / Error) */}
+      {locationError && (
+        <div className="flex items-center justify-between gap-3 text-xs text-amber-900 bg-amber-50 border border-amber-200 px-4 py-2.5 rounded-2xl animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+            <span className="font-medium">{locationError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleGetCurrentLocation}
+            disabled={isLocating}
+            className="inline-flex items-center gap-1 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold transition-colors flex-shrink-0"
+          >
+            <RotateCcw className="w-3 h-3" />
+            <span>Retry</span>
+          </button>
+        </div>
+      )}
 
       {/* Active Filter Badges */}
       {hasFilter && (
@@ -557,7 +641,7 @@ export default function ProviderDiscovery() {
         <span>{resultTitle}</span>
         {radius > 0 && userLocation && (
           <span className="text-xs font-normal text-slate-500">
-            Within {radius} km of selected location
+            Within {radius} km of your current location
           </span>
         )}
       </div>
@@ -583,11 +667,19 @@ export default function ProviderDiscovery() {
               />
             ) : filteredProviders.length === 0 ? (
               <EmptyState
-                title={hasFilter ? 'No matching providers found' : 'No providers in this area'}
+                title={
+                  userLocation && radius > 0
+                    ? `No providers found within ${radius} km of your current location`
+                    : hasFilter
+                    ? 'No matching providers found'
+                    : 'No providers found'
+                }
                 message={
-                  hasFilter
-                    ? 'Try broadening your search term, selecting All Distances, or switching location.'
-                    : 'Try increasing the radius to locate verified specialists.'
+                  userLocation && radius > 0
+                    ? 'Try expanding your search radius or selecting "All Distances".'
+                    : hasFilter
+                    ? 'Try a different search term or category.'
+                    : 'No approved service providers available at this time.'
                 }
               />
             ) : (
@@ -637,6 +729,7 @@ export default function ProviderDiscovery() {
                             <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
                             4.5
                           </span>
+                          {/* Distance calculated strictly from customer current location -> provider */}
                           {p.distanceKm != null && (
                             <span className="text-blue-600 font-semibold">
                               · {formatDistance(p.distanceKm)}
@@ -722,6 +815,9 @@ export default function ProviderDiscovery() {
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
 
+              {/* Fly to customer current location when acquired */}
+              <MapUserFocus userLocation={userLocation} />
+
               {/* Smooth map pan when provider is selected */}
               <MapFocus
                 selectedLocation={
@@ -734,13 +830,13 @@ export default function ProviderDiscovery() {
                 }
               />
 
-              {/* Reference User Location Marker */}
+              {/* Customer Current Location Marker */}
               {userLocation && (
                 <>
                   <Marker position={[userLocation.lat, userLocation.lng]} icon={userIcon}>
                     <Popup>
-                      <div className="text-xs font-semibold">
-                        Reference Location ({locationName})
+                      <div className="text-xs font-bold p-1 text-blue-700">
+                        📍 Your Current Location
                       </div>
                     </Popup>
                   </Marker>
@@ -771,7 +867,14 @@ export default function ProviderDiscovery() {
                             </span>
                           </div>
                           {p.city && (
-                            <p className="text-slate-500 text-xs mt-0.5">{p.city}, {p.state}</p>
+                            <p className="text-slate-500 text-xs mt-0.5">
+                              {p.city}, {p.state}
+                            </p>
+                          )}
+                          {p.distanceKm != null && (
+                            <p className="text-blue-600 text-xs font-semibold mt-0.5">
+                              {formatDistance(p.distanceKm)} from you
+                            </p>
                           )}
                         </div>
 
