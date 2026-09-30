@@ -344,6 +344,18 @@ public class BookingService {
                 serviceRequest.setServiceType(quote.getServiceName().trim());
             }
         } else {
+            if ("QUOTE_REQUIRED".equalsIgnoreCase(catalogItem.pricingType())) {
+                log.warn(
+                        "Booking creation rejected: quote required for service, customerId={}, catalogItemId={}",
+                        customerId,
+                        request.catalogItemId()
+                );
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "This service requires an official quote before booking. Please request a quote via chat."
+                );
+            }
+
             if (catalogItem.price() == null
                     || catalogItem.price().signum() < 0) {
 

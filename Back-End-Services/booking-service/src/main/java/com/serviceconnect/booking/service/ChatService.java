@@ -202,6 +202,9 @@ public class ChatService {
         quote.setStatus("PENDING");
         quote.setCreatedAt(OffsetDateTime.now());
         quote.setUpdatedAt(OffsetDateTime.now());
+        if (request.expiresAt() != null) {
+            quote.setExpiresAt(request.expiresAt());
+        }
 
         quote = quoteRepository.save(quote);
 
@@ -228,6 +231,13 @@ public class ChatService {
 
         if (!quote.getCustomerId().equals(customerId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only accept quotes addressed to you");
+        }
+
+        if (quote.getExpiresAt() != null && quote.getExpiresAt().isBefore(OffsetDateTime.now())) {
+            quote.setStatus("EXPIRED");
+            quote.setUpdatedAt(OffsetDateTime.now());
+            quoteRepository.save(quote);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Quote has expired");
         }
 
         if (!"PENDING".equalsIgnoreCase(quote.getStatus())) {
@@ -258,6 +268,13 @@ public class ChatService {
 
         if (!quote.getCustomerId().equals(customerId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only decline quotes addressed to you");
+        }
+
+        if (quote.getExpiresAt() != null && quote.getExpiresAt().isBefore(OffsetDateTime.now())) {
+            quote.setStatus("EXPIRED");
+            quote.setUpdatedAt(OffsetDateTime.now());
+            quoteRepository.save(quote);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Quote has expired");
         }
 
         if (!"PENDING".equalsIgnoreCase(quote.getStatus())) {
@@ -306,6 +323,10 @@ public class ChatService {
 
         if (!"ACCEPTED".equalsIgnoreCase(quote.getStatus())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Quote must be ACCEPTED before booking can be confirmed");
+        }
+
+        if (quote.getExpiresAt() != null && quote.getExpiresAt().isBefore(OffsetDateTime.now())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Quote has expired");
         }
 
         return quote;
@@ -387,6 +408,10 @@ public class ChatService {
     }
 
     private QuoteResponse toQuoteResponse(Quote q) {
+        String status = q.getStatus();
+        if ("PENDING".equalsIgnoreCase(status) && q.getExpiresAt() != null && q.getExpiresAt().isBefore(OffsetDateTime.now())) {
+            status = "EXPIRED";
+        }
         return new QuoteResponse(
                 q.getId(),
                 q.getConversationId(),
@@ -398,7 +423,7 @@ public class ChatService {
                 q.getNote(),
                 q.getAmount(),
                 q.getCurrency(),
-                q.getStatus(),
+                status,
                 q.getCreatedAt(),
                 q.getUpdatedAt(),
                 q.getExpiresAt()

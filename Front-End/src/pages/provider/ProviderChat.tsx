@@ -303,6 +303,8 @@ export default function ProviderChat() {
                                     ? 'bg-emerald-600 text-white'
                                     : quote.status === 'DECLINED'
                                     ? 'bg-rose-100 text-rose-700'
+                                    : quote.status === 'EXPIRED'
+                                    ? 'bg-slate-200 text-slate-700'
                                     : 'bg-indigo-600 text-white'
                                 }`}
                               >
@@ -333,6 +335,7 @@ export default function ProviderChat() {
                             {quote.status === 'ACCEPTED' && 'Customer accepted quote. Awaiting booking completion.'}
                             {quote.status === 'PENDING' && 'Pending customer acceptance.'}
                             {quote.status === 'DECLINED' && 'Customer declined this quote.'}
+                            {quote.status === 'EXPIRED' && 'Quote expired.'}
                           </span>
                         </div>
                       </div>

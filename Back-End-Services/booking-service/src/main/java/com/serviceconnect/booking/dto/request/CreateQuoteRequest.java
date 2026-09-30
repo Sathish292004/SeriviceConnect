@@ -21,6 +21,8 @@ public record CreateQuoteRequest(
         BigDecimal amount,
 
         @Size(max = 1000, message = "Note cannot exceed 1000 characters")
-        String note
+        String note,
+
+        java.time.OffsetDateTime expiresAt
 ) {
 }

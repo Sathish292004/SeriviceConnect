@@ -320,6 +320,8 @@ export default function CustomerChat() {
                                     ? 'bg-emerald-600 text-white'
                                     : quote.status === 'DECLINED'
                                     ? 'bg-rose-100 text-rose-700'
+                                    : quote.status === 'EXPIRED'
+                                    ? 'bg-slate-200 text-slate-700'
                                     : 'bg-amber-500 text-white'
                                 }`}
                               >
@@ -369,6 +371,13 @@ export default function CustomerChat() {
                                   Accept Quote
                                 </button>
                               </>
+                            )}
+
+                            {quote.status === 'EXPIRED' && (
+                              <span className="text-xs text-rose-600 font-semibold flex items-center gap-1">
+                                <Clock className="w-3.5 h-3.5" />
+                                Quote Expired
+                              </span>
                             )}
 
                             {quote.status === 'ACCEPTED' && (

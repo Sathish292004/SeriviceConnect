@@ -44,6 +44,7 @@ public class CatalogServiceClient {
             String description,
             String category,
             java.math.BigDecimal price,
+            String pricingType,
             Integer durationMinutes,
             Boolean active,
             java.time.LocalDateTime createdAt,
