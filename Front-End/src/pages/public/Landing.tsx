@@ -1,7 +1,10 @@
-import { Link } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { Search, MapPin, CalendarCheck, CheckCircle2, Shield, Star } from 'lucide-react'
 
 export default function Landing() {
+  const navigate = useNavigate()
+  const [heroSearch, setHeroSearch] = useState('')
   return (
     <div>
       {/* Hero */}
@@ -13,7 +16,35 @@ export default function Landing() {
           <p className="mt-4 text-lg text-[#64748B] max-w-2xl mx-auto">
             Book verified electricians, plumbers, HVAC technicians, and more — all near you.
           </p>
-          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+          {/* Hero service search */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (heroSearch.trim()) {
+                navigate(`/providers?q=${encodeURIComponent(heroSearch.trim())}`)
+              } else {
+                navigate('/providers')
+              }
+            }}
+            className="mt-8 max-w-xl mx-auto"
+          >
+            <div className="flex items-center bg-white rounded-xl border-2 border-[#E2E8F0] focus-within:border-[#2563EB] focus-within:ring-2 focus-within:ring-[#2563EB]/10 shadow-lg transition-all overflow-hidden">
+              <Search className="w-5 h-5 text-[#94A3B8] ml-4 flex-shrink-0" />
+              <input
+                value={heroSearch}
+                onChange={(e) => setHeroSearch(e.target.value)}
+                placeholder="What service do you need? e.g. AC repair, plumbing…"
+                className="flex-1 px-3 py-3.5 text-sm text-[#0F172A] placeholder-[#94A3B8] bg-transparent border-none outline-none"
+              />
+              <button
+                type="submit"
+                className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-medium text-sm px-5 py-3.5 transition-colors flex-shrink-0"
+              >
+                Search
+              </button>
+            </div>
+          </form>
+          <div className="mt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link to="/providers" className="sc-btn-primary text-base px-8 py-3 inline-flex items-center gap-2">
               <MapPin className="w-5 h-5" /> Find Providers Near Me
             </Link>

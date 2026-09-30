@@ -8,6 +8,8 @@ import { LoadingState, ErrorState, NoResultsState, EmptyState } from '@/componen
 import { formatPrice } from '@/utils/formatters'
 import { useDebounce } from '@/hooks/useDebounce'
 
+import { MAJOR_CATEGORIES } from '@/lib/categories'
+
 export default function Services() {
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('')
@@ -30,14 +32,12 @@ export default function Services() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94A3B8]" />
           <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(0) }} placeholder="Search services…" className="sc-input pl-10" />
         </div>
-        <select value={category} onChange={(e) => { setCategory(e.target.value); setPage(0) }} className="sc-input w-auto min-w-[160px]" aria-label="Category">
-          <option value="">All Categories</option>
-          <option value="Electrical">Electrical</option>
-          <option value="Plumbing">Plumbing</option>
-          <option value="HVAC">HVAC</option>
-          <option value="Cleaning">Cleaning</option>
-          <option value="Painting">Painting</option>
-          <option value="Landscaping">Landscaping</option>
+        <select value={category} onChange={(e) => { setCategory(e.target.value); setPage(0) }} className="sc-input w-auto min-w-[180px]" aria-label="Category">
+          {MAJOR_CATEGORIES.map((cat) => (
+            <option key={cat.name} value={cat.name}>
+              {cat.label}
+            </option>
+          ))}
         </select>
       </div>
 
@@ -58,7 +58,10 @@ export default function Services() {
                 </div>
                 <span className="tag-pill">{item.category}</span>
                 {item.description && <p className="text-xs text-[#64748B] line-clamp-2 mt-2">{item.description}</p>}
-                <Link to={`/providers/${item.providerId}`} className="sc-btn-primary w-full mt-4 text-sm text-center">View Provider</Link>
+                <div className="flex gap-2 mt-4">
+                  <Link to={`/providers?q=${encodeURIComponent(item.name)}`} className="sc-btn-outline flex-1 text-xs text-center">Find Nearby</Link>
+                  <Link to={`/providers/${item.providerId}`} className="sc-btn-primary flex-1 text-xs text-center">View Provider</Link>
+                </div>
               </div>
             ))}
           </div>
