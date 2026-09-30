@@ -179,7 +179,8 @@ export default function ProviderDiscovery() {
           return
         }
 
-        // Development logging to verify actual coordinates
+        // Explicit geolocation logging requested by diagnosis prompt
+        console.log(`[GEOLOCATION RAW]\nlatitude: ${lat}\nlongitude: ${lng}\naccuracy: ${pos.coords.accuracy} meters\ntimestamp: ${new Date(pos.timestamp).toISOString()}`)
         if (import.meta.env.DEV) {
           console.log('[ServiceConnect] Current customer coordinates from browser:', {
             latitude: lat,
@@ -199,6 +200,7 @@ export default function ProviderDiscovery() {
         setLocationError('')
       },
       (err) => {
+        console.warn(`[GEOLOCATION ERROR] code: ${err.code}, message: ${err.message}`)
         setIsLocating(false)
         setActiveCustomerLocation(null)
         if (err.code === err.PERMISSION_DENIED) {
