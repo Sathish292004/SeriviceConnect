@@ -43,6 +43,15 @@ public class Notification {
     @Column(name = "read", nullable = false)
     private boolean read = false;
 
+    @Column(name = "email_sent", nullable = false)
+    private boolean emailSent = false;
+
+    @Column(name = "email_sent_at")
+    private OffsetDateTime emailSentAt;
+
+    @Column(name = "email_recipient")
+    private String emailRecipient;
+
     @Column(name = "idempotency_key", unique = true)
     private String idempotencyKey;
 

@@ -119,6 +119,27 @@ public class NotificationController {
     }
 
     // ============================================================
+    // NOTIFICATION PREFERENCES
+    // ============================================================
+
+    @GetMapping("/preferences")
+    public ResponseEntity<com.serviceconnect.booking.entity.NotificationPreference> getPreferences(
+            @AuthenticationPrincipal Jwt jwt
+    ) {
+        Long authenticatedUserId = getUserId(jwt);
+        return ResponseEntity.ok(notificationService.getPreferences(authenticatedUserId));
+    }
+
+    @PutMapping("/preferences")
+    public ResponseEntity<com.serviceconnect.booking.entity.NotificationPreference> updatePreferences(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestBody com.serviceconnect.booking.entity.NotificationPreference preferences
+    ) {
+        Long authenticatedUserId = getUserId(jwt);
+        return ResponseEntity.ok(notificationService.updatePreferences(authenticatedUserId, preferences));
+    }
+
+    // ============================================================
     // JWT HELPER
     // ============================================================
 

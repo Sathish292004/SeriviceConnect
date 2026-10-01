@@ -12,6 +12,23 @@ public record NotificationResponse(
         Long relatedEntityId,
         String deepLink,
         boolean read,
-        OffsetDateTime createdAt
+        OffsetDateTime createdAt,
+        boolean emailSent,
+        OffsetDateTime emailSentAt,
+        String emailRecipient
 ) {
+    public NotificationResponse(
+            Long id,
+            Long recipientUserId,
+            String type,
+            String title,
+            String message,
+            String relatedEntityType,
+            Long relatedEntityId,
+            String deepLink,
+            boolean read,
+            OffsetDateTime createdAt
+    ) {
+        this(id, recipientUserId, type, title, message, relatedEntityType, relatedEntityId, deepLink, read, createdAt, false, null, null);
+    }
 }

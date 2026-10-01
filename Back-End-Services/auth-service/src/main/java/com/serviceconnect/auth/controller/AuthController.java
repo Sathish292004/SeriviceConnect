@@ -258,6 +258,21 @@ public class AuthController {
 
 
     // ============================================================
+    // INTERNAL - GET USER EMAIL
+    // ============================================================
+
+    @GetMapping("/internal/users/{userId}/email")
+    public ResponseEntity<Map<String, String>> getUserEmail(
+            @PathVariable Long userId
+    ) {
+
+        return ResponseEntity.ok(
+                Map.of("email", authService.getUserEmail(userId))
+        );
+    }
+
+
+    // ============================================================
     // FORGOT PASSWORD
     // ============================================================
 

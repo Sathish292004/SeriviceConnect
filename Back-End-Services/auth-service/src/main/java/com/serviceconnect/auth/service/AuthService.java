@@ -502,6 +502,27 @@ public class AuthService {
 
 
     // ============================================================
+    // GET USER EMAIL (INTERNAL)
+    // ============================================================
+
+    @Transactional(readOnly = true)
+    public String getUserEmail(
+            Long userId) {
+
+        User user =
+                userRepository.findById(userId)
+                        .orElseThrow(() ->
+                                new ResponseStatusException(
+                                        HttpStatus.NOT_FOUND,
+                                        "User not found"
+                                )
+                        );
+
+        return user.getEmail();
+    }
+
+
+    // ============================================================
     // GET SECURITY SETTINGS
     // ============================================================
 

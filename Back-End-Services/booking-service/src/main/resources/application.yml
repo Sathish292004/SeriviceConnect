@@ -51,6 +51,9 @@ services:
   user:
     url: http://localhost:8082
 
+  auth:
+    url: ${SERVICES_AUTH_URL:http://localhost:8081}
+
   provider:
     url: http://localhost:8084
 
@@ -59,6 +62,13 @@ services:
 
   review:
     url: http://localhost:8087
+
+brevo:
+  api-key: ${BREVO_API_KEY:dummy-brevo-api-key}
+  api-url: ${BREVO_API_URL:https://api.brevo.com/v3/smtp/email}
+  sender:
+    name: ServiceConnect
+    email: ${BREVO_SENDER_EMAIL:noreply@serviceconnect.com}
 
 eureka:
   client:

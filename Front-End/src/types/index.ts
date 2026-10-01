@@ -625,6 +625,9 @@ export interface NotificationItem {
   deepLink?: string
   read: boolean
   createdAt: string
+  emailSent?: boolean
+  emailSentAt?: string
+  emailRecipient?: string
 }
 
 export interface UnreadCountResponse {

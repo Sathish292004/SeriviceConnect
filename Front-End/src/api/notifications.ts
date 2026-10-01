@@ -35,4 +35,12 @@ export const notificationApi = {
   /** Emit custom real event notification */
   emitEvent: (data: Record<string, unknown>) =>
     gatewayClient.post<NotificationItem>(`${BASE}/events`, data),
+
+  /** Get notification preferences from PostgreSQL */
+  getPreferences: () =>
+    gatewayClient.get<Record<string, unknown>>(`${BASE}/preferences`),
+
+  /** Update notification preferences (including email notifications) */
+  updatePreferences: (data: Record<string, unknown>) =>
+    gatewayClient.put<Record<string, unknown>>(`${BASE}/preferences`, data),
 }

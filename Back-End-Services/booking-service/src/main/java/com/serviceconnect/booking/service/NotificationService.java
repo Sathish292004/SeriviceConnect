@@ -5,8 +5,10 @@ import com.serviceconnect.booking.dto.request.PushSubscriptionRequest;
 import com.serviceconnect.booking.dto.response.NotificationResponse;
 import com.serviceconnect.booking.dto.response.UnreadCountResponse;
 import com.serviceconnect.booking.entity.Notification;
+import com.serviceconnect.booking.entity.NotificationPreference;
 import com.serviceconnect.booking.entity.NotificationType;
 import com.serviceconnect.booking.entity.PushSubscription;
+import com.serviceconnect.booking.repository.NotificationPreferenceRepository;
 import com.serviceconnect.booking.repository.NotificationRepository;
 import com.serviceconnect.booking.repository.PushSubscriptionRepository;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +33,9 @@ public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final PushSubscriptionRepository pushSubscriptionRepository;
+    private final NotificationPreferenceRepository notificationPreferenceRepository;
     private final ChatSafetyService chatSafetyService;
+    private final EmailNotificationService emailNotificationService;
 
     // ============================================================
     // QUERY NOTIFICATIONS
@@ -172,6 +176,9 @@ public class NotificationService {
         // Dispatch browser push outside transaction boundary or gracefully
         dispatchPushNotificationSilently(saved);
 
+        // Dispatch email notification delivery channel
+        dispatchEmailNotificationSilently(saved);
+
         return toResponse(saved);
     }
 
@@ -241,6 +248,57 @@ public class NotificationService {
         }
     }
 
+    // ============================================================
+    // EMAIL DISPATCH (FAILURE DOES NOT ROLL BACK POSTGRESQL STATE)
+    // ============================================================
+
+    private void dispatchEmailNotificationSilently(Notification notification) {
+        try {
+            emailNotificationService.dispatchEmailNotification(notification.getId());
+        } catch (Exception ex) {
+            // Email delivery failure must never delete or roll back the PostgreSQL notification
+            log.warn("Silent email dispatch notice: {}", ex.getMessage());
+        }
+    }
+
+    // ============================================================
+    // NOTIFICATION PREFERENCES
+    // ============================================================
+
+    @Transactional(readOnly = true)
+    public NotificationPreference getPreferences(Long userId) {
+        if (userId == null || userId <= 0) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User authentication required");
+        }
+        return notificationPreferenceRepository.findById(userId).orElseGet(() -> {
+            NotificationPreference pref = new NotificationPreference();
+            pref.setUserId(userId);
+            return pref;
+        });
+    }
+
+    @Transactional
+    public NotificationPreference updatePreferences(Long userId, NotificationPreference updated) {
+        if (userId == null || userId <= 0) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User authentication required");
+        }
+        NotificationPreference pref = notificationPreferenceRepository.findById(userId).orElseGet(() -> {
+            NotificationPreference p = new NotificationPreference();
+            p.setUserId(userId);
+            return p;
+        });
+
+        pref.setEmailEnabled(updated.isEmailEnabled());
+        pref.setChatMessages(updated.isChatMessages());
+        pref.setQuotes(updated.isQuotes());
+        pref.setBookings(updated.isBookings());
+        pref.setSupport(updated.isSupport());
+        pref.setReviews(updated.isReviews());
+        pref.setReminders(updated.isReminders());
+
+        return notificationPreferenceRepository.save(pref);
+    }
+
     private NotificationResponse toResponse(Notification n) {
         return new NotificationResponse(
                 n.getId(),
@@ -252,7 +310,10 @@ public class NotificationService {
                 n.getRelatedEntityId(),
                 n.getDeepLink(),
                 n.isRead(),
-                n.getCreatedAt()
+                n.getCreatedAt(),
+                n.isEmailSent(),
+                n.getEmailSentAt(),
+                n.getEmailRecipient()
         );
     }
 }

@@ -13,6 +13,7 @@ import {
   Clock,
   Sparkles,
   ExternalLink,
+  Mail,
 } from 'lucide-react'
 import { notificationApi } from '@/api/notifications'
 import { pushNotifications } from '@/lib/pushNotifications'
@@ -253,9 +254,17 @@ export function NotificationBell() {
                       <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
                         {item.message}
                       </p>
-                      <div className="flex items-center gap-1.5 mt-1.5 text-[10px] text-slate-400 font-medium">
-                        <Clock className="w-3 h-3" />
-                        <span>{formatRelativeTime(item.createdAt)}</span>
+                      <div className="flex items-center gap-2 mt-1.5 text-[10px] text-slate-400 font-medium">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          <span>{formatRelativeTime(item.createdAt)}</span>
+                        </span>
+                        {item.emailSent && (
+                          <span className="flex items-center gap-0.5 text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded text-[9px] font-semibold" title={`Delivered to email: ${item.emailRecipient || 'registered email'}`}>
+                            <Mail className="w-2.5 h-2.5" />
+                            <span>Email</span>
+                          </span>
+                        )}
                         {item.deepLink && (
                           <span className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-600 flex items-center gap-0.5 ml-auto">
                             <span>Open</span>

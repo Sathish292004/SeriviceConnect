@@ -225,7 +225,9 @@ public class SecurityConfig {
                                 "/api/v1/auth/verification/email/request",
                                 "/api/v1/auth/verification/email/verify",
                                 "/api/v1/auth/verification/phone/request",
-                                "/api/v1/auth/verification/phone/verify"
+                                "/api/v1/auth/verification/phone/verify",
+
+                                "/api/v1/auth/internal/users/*/email"
                         ).permitAll()
 
 
